@@ -97,7 +97,7 @@ describe("apiFetch", () => {
       json: async () => {
         throw new SyntaxError("Unexpected token");
       },
-    } as Response) as unknown as typeof fetch;
+    } as unknown as Response) as unknown as typeof fetch;
 
     await expect(apiFetch("https://example.com/api")).rejects.toMatchObject({
       code: "PARSE_ERROR",
