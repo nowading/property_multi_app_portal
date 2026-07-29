@@ -1,0 +1,31 @@
+# =============================================================================
+# Property Multi-App Portal — Docker Compose
+# Phase 0: only the ML container is orchestrated here.
+# Web / estimator-api / analytics-api will be added in Phase 6.
+# =============================================================================
+
+services:
+  ml-service:
+    build:
+      context: ../house_price_prediction
+      dockerfile: Dockerfile
+    container_name: house-price-ml
+    ports:
+      - "${ML_CONTAINER_PORT:-8000}:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - portal-network
+
+networks:
+  portal-network:
+    driver: bridge

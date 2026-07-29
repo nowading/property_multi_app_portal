@@ -1,0 +1,74 @@
+# =============================================================================
+# Monorepo .gitignore — covers Next.js / Python / Java / IDE / OS
+# =============================================================================
+
+# ---------- Secrets & env ----------
+.env
+.env.local
+.env.*.local
+*.env
+
+# ---------- Trae / IDE ----------
+.trae/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- Logs ----------
+*.log
+logs/
+
+# ---------- Node / Next.js ----------
+node_modules/
+.next/
+out/
+build/
+dist/
+coverage/
+.npm
+.pnpm-store/
+*.tsbuildinfo
+next-env.d.ts
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# ---------- Java / Maven / Spring ----------
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+.mvn/wrapper/maven-wrapper.jar
+
+# ---------- Docker ----------
+*.pid
+
+# ---------- Misc ----------
+.cache/
+tmp/
+temp/
