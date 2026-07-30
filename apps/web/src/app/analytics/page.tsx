@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { AnalyticsDashboard } from "@/components/analytics/AnalyticsDashboard";
 
 export const metadata = {
@@ -8,7 +10,8 @@ export const metadata = {
  * Analytics page (RSC shell).
  *
  * Delegates all interactivity (chart rendering, filter state, data fetching)
- * to the <AnalyticsDashboard> client component. Uses mock data until the
+ * to the <AnalyticsDashboard> client component. Wraps it in Suspense
+ * because useSearchParams requires a boundary. Uses mock data until the
  * Spring Boot backend is available (Phase 5).
  */
 export default function AnalyticsPage() {
@@ -25,7 +28,9 @@ export default function AnalyticsPage() {
         </p>
       </div>
 
-      <AnalyticsDashboard />
+      <Suspense fallback={<p className="text-slate-500">Loading dashboard…</p>}>
+        <AnalyticsDashboard />
+      </Suspense>
     </div>
   );
 }

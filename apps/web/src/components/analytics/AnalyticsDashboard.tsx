@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { BedroomBoxPlot } from "./BedroomBoxPlot";
 import { FilterPanel } from "./FilterPanel";
@@ -18,22 +19,90 @@ import {
 
 const MOCK_SEED = 42;
 
+const FILTER_PARAM_KEYS: (keyof StatsFilters)[] = [
+  "bedrooms_min",
+  "bedrooms_max",
+  "year_built_min",
+  "year_built_max",
+  "distance_max",
+  "school_rating_min",
+];
+
+function parseFiltersFromUrl(searchParams: URLSearchParams): StatsFilters {
+  const filters: StatsFilters = {};
+  for (const key of FILTER_PARAM_KEYS) {
+    const val = searchParams.get(key);
+    if (val !== null) {
+      const num = Number(val);
+      if (!Number.isNaN(num)) {
+        filters[key] = num;
+      }
+    }
+  }
+  return filters;
+}
+
+function buildUrlFromFilters(filters: StatsFilters): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const key of FILTER_PARAM_KEYS) {
+    const val = filters[key];
+    if (val !== undefined) {
+      params.set(key, String(val));
+    }
+  }
+  return params;
+}
+
 export interface AnalyticsDashboardProps {
   initialStats?: MarketStats | null;
+  initialFilters?: StatsFilters;
 }
 
 /**
  * Analytics dashboard client component.
  *
  * Displays KPI summary cards, a filter panel, and three chart visualisations.
- * Filters constrain the mock data generator, producing deterministic yet
- * responsive updates. URL sync is handled via the page wrapper.
+ * Filters are synced to URL search params so they are bookmarkable and
+ * survive page refresh. URL updates are debounced (300ms) to avoid
+ * excessive history entries during slider drag.
  *
  * Currently uses mock data (matching the Spring Boot API shape). Will switch
  * to real API calls in Phase 5.
  */
-export function AnalyticsDashboard({ initialStats }: AnalyticsDashboardProps) {
-  const [filters, setFilters] = useState<StatsFilters>(DEFAULT_FILTERS);
+export function AnalyticsDashboard({
+  initialStats,
+  initialFilters,
+}: AnalyticsDashboardProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [filters, setFilters] = useState<StatsFilters>(() => {
+    if (initialFilters) return initialFilters;
+    if (typeof searchParams !== "undefined") {
+      return parseFiltersFromUrl(searchParams);
+    }
+    return DEFAULT_FILTERS;
+  });
+
+  const isInitialMount = useRef(true);
+
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (typeof router === "undefined") return;
+
+    const params = buildUrlFromFilters(filters);
+    const paramStr = params.toString();
+    const newUrl = paramStr ? `?${paramStr}` : window.location.pathname;
+
+    const timeout = setTimeout(() => {
+      router.replace(newUrl, { scroll: false });
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [filters, router]);
 
   const stats = useMemo(
     () => initialStats ?? generateMarketStats(MOCK_SEED, filters),
