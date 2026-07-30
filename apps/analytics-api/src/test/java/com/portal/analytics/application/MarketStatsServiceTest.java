@@ -1,5 +1,7 @@
 package com.portal.analytics.application;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.portal.analytics.domain.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,7 +24,10 @@ class MarketStatsServiceTest {
     @BeforeEach
     void setUp() {
         datasetPort = new InMemoryDatasetPort();
-        service = new MarketStatsService(datasetPort);
+        Cache<String, MarketStats> cache = Caffeine.newBuilder()
+                .maximumSize(100)
+                .build();
+        service = new MarketStatsService(datasetPort, cache);
     }
 
     @Test

@@ -1,31 +1,44 @@
 package com.portal.analytics.application;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.portal.analytics.adapters.persistence.CacheConfig;
 import com.portal.analytics.domain.ModelInfo;
 import com.portal.analytics.domain.ModelInferencePort;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 /**
- * Service for retrieving ML model metadata.
+ * Service for retrieving model metadata with caching.
  *
- * <p>This service delegates to the {@link ModelInferencePort} and
- * exists as a separate use case so it can be cached independently
- * (model info changes rarely).
+ * <p>Caches model info for 60 seconds since model metadata rarely changes.
  */
 @Service
 public class ModelInfoService {
 
     private final ModelInferencePort modelInferencePort;
+    private final Cache<String, ModelInfo> modelInfoCache;
 
-    public ModelInfoService(ModelInferencePort modelInferencePort) {
+    private static final String CACHE_KEY = "model-info";
+
+    public ModelInfoService(ModelInferencePort modelInferencePort,
+                            @Qualifier(CacheConfig.MODEL_INFO_CACHE) Cache<String, ModelInfo> modelInfoCache) {
         this.modelInferencePort = modelInferencePort;
+        this.modelInfoCache = modelInfoCache;
     }
 
     /**
-     * Get ML model metadata.
+     * Get model information, cached for 60 seconds.
      *
-     * @return model information
+     * @return model metadata
      */
-    public ModelInfo getInfo() {
-        return modelInferencePort.getModelInfo();
+    public ModelInfo getModelInfo() {
+        return modelInfoCache.get(CACHE_KEY, key -> modelInferencePort.getModelInfo());
+    }
+
+    /**
+     * Clear the model info cache (useful for testing or admin operations).
+     */
+    public void clearCache() {
+        modelInfoCache.invalidateAll();
     }
 }

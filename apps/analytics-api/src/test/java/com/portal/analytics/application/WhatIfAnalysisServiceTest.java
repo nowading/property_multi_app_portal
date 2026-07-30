@@ -1,5 +1,7 @@
 package com.portal.analytics.application;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.portal.analytics.domain.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,7 +24,10 @@ class WhatIfAnalysisServiceTest {
     @BeforeEach
     void setUp() {
         mockPort = new MockModelInferencePort();
-        service = new WhatIfAnalysisService(mockPort);
+        Cache<String, WhatIfResult> cache = Caffeine.newBuilder()
+                .maximumSize(100)
+                .build();
+        service = new WhatIfAnalysisService(mockPort, cache);
     }
 
     @Test

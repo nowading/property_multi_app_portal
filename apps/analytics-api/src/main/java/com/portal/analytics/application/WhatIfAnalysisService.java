@@ -1,6 +1,9 @@
 package com.portal.analytics.application;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.portal.analytics.adapters.persistence.CacheConfig;
 import com.portal.analytics.domain.*;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 /**
@@ -9,6 +12,8 @@ import org.springframework.stereotype.Service;
  *
  * <p>This service orchestrates the {@link ModelInferencePort} to get
  * predictions and computes the delta from baseline.
+ *
+ * <p>Results are cached in Caffeine for 60 seconds with max 500 entries per cache key.
  */
 @Service
 public class WhatIfAnalysisService {
@@ -19,13 +24,17 @@ public class WhatIfAnalysisService {
     );
 
     private final ModelInferencePort modelInferencePort;
+    private final Cache<String, WhatIfResult> whatIfCache;
 
-    public WhatIfAnalysisService(ModelInferencePort modelInferencePort) {
+    public WhatIfAnalysisService(ModelInferencePort modelInferencePort,
+                                 @Qualifier(CacheConfig.WHAT_IF_CACHE) Cache<String, WhatIfResult> whatIfCache) {
         this.modelInferencePort = modelInferencePort;
+        this.whatIfCache = whatIfCache;
     }
 
     /**
      * Run a what-if analysis comparing modified features against baseline.
+     * Results are cached using feature values as cache key.
      *
      * @param modifiedFeatures the modified features to predict
      * @param baselineFeatures the baseline features (null = use defaults)
@@ -34,6 +43,12 @@ public class WhatIfAnalysisService {
     public WhatIfResult analyze(PropertyFeatures modifiedFeatures, PropertyFeatures baselineFeatures) {
         PropertyFeatures baseline = baselineFeatures != null ? baselineFeatures : DEFAULT_BASELINE;
 
+        String cacheKey = toCacheKey(modifiedFeatures, baseline);
+
+        return whatIfCache.get(cacheKey, key -> computeAnalysis(modifiedFeatures, baseline));
+    }
+
+    private WhatIfResult computeAnalysis(PropertyFeatures modifiedFeatures, PropertyFeatures baseline) {
         PredictionResult predicted = modelInferencePort.predict(modifiedFeatures);
         PredictionResult baselineResult = modelInferencePort.predict(baseline);
 
@@ -49,6 +64,14 @@ public class WhatIfAnalysisService {
                 Math.round(deltaPercent * 100.0) / 100.0,
                 modifiedFeatures
         );
+    }
+
+    private String toCacheKey(PropertyFeatures modified, PropertyFeatures baseline) {
+        return String.format("wi:%.1f,%d,%.1f,%d,%.1f,%.1f,%.1f|%.1f,%d,%.1f,%d,%.1f,%.1f,%.1f",
+                modified.squareFootage(), modified.bedrooms(), modified.bathrooms(),
+                modified.yearBuilt(), modified.lotSize(), modified.distanceToCityCenter(), modified.schoolRating(),
+                baseline.squareFootage(), baseline.bedrooms(), baseline.bathrooms(),
+                baseline.yearBuilt(), baseline.lotSize(), baseline.distanceToCityCenter(), baseline.schoolRating());
     }
 
     /**
