@@ -5,11 +5,49 @@ spring:
   application:
     name: analytics-api
 
+# ML Service Configuration
+ml:
+  service:
+    url: ${ML_SERVICE_URL:http://localhost:8000}
+
+# Actuator Configuration
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,env
+      base-path: /actuator
   endpoint:
     health:
       show-details: always
+      show-components: always
+      probes:
+        enabled: true
+  health:
+    defaults:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.portal.analytics: DEBUG
+    org.springframework.web: INFO
+    org.springframework.boot: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Cache Configuration (Caffeine)
+spring.cache:
+  type: caffeine
+
+# Jackson Configuration
+spring.jackson:
+  date-format: yyyy-MM-dd'T'HH:mm:ss'Z'
+  time-zone: UTC
+  serialization:
+    write-dates-as-timestamps: false
