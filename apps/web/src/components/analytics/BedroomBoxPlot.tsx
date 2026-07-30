@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -24,95 +25,74 @@ export interface BedroomBoxPlotProps {
   data: BoxPlotGroup[];
 }
 
-interface BoxPlotBarData {
-  bedrooms: number;
-  offset: number;
-  iqr: number;
-  median: number;
-  rangeOffset: number;
-  rangeHeight: number;
-  q1Value: number;
-  q3Value: number;
+interface ChartDataItem {
+  bedrooms: string;
   min: number;
+  q1: number;
+  median: number;
+  q3: number;
   max: number;
   count: number;
 }
 
-/**
- * Compute a simplified box-plot data representation for Recharts.
- *
- * Stacked bars in Recharts always start from 0. To render an IQR box
- * that starts at Q1 and ends at Q3, we need:
- * - An invisible "offset" bar from 0 to Q1
- * - A visible "iqr" bar from Q1 to Q3 (height = Q3 - Q1)
- *
- * Similarly for the full range (min→max):
- * - An invisible "rangeOffset" bar from 0 to min
- * - A visible "rangeHeight" bar from min to max
- */
-function prepareBoxPlotData(data: BoxPlotGroup[]): BoxPlotBarData[] {
-  return data.map((g) => {
-    const iqr = g.q3 - g.q1;
-    const rangeHeight = g.max - g.min;
-    return {
-      bedrooms: g.bedrooms,
-      offset: g.q1, // invisible offset for IQR stack
-      iqr, // visible IQR height
-      median: g.median,
-      rangeOffset: g.min, // invisible offset for range stack
-      rangeHeight, // visible range height
-      q1Value: g.q1,
-      q3Value: g.q3,
-      min: g.min,
-      max: g.max,
-      count: g.count,
-    };
-  });
+function prepareChartData(data: BoxPlotGroup[]): ChartDataItem[] {
+  return data.map((g) => ({
+    bedrooms: `${g.bedrooms} BR`,
+    min: g.min,
+    q1: g.q1,
+    median: g.median,
+    q3: g.q3,
+    max: g.max,
+    count: g.count,
+  }));
 }
 
-const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: BoxPlotBarData }> }) => {
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ payload: ChartDataItem }>; label?: string }) => {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-md">
       <p className="text-sm font-medium text-slate-900">
-        {d.bedrooms} Bedrooms · {d.count} properties
+        {label} · {d.count} properties
       </p>
       <dl className="mt-1 grid grid-cols-2 gap-x-4 text-xs text-slate-500">
-        <dt>Median</dt><dd className="text-right">{formatPrice(d.median)}</dd>
-        <dt>Q1</dt><dd className="text-right">{formatPrice(d.q1Value)}</dd>
-        <dt>Q3</dt><dd className="text-right">{formatPrice(d.q3Value)}</dd>
-        <dt>Min</dt><dd className="text-right">{formatPrice(d.min)}</dd>
-        <dt>Max</dt><dd className="text-right">{formatPrice(d.max)}</dd>
+        <dt>Min Price</dt><dd className="text-right">{formatPrice(d.min)}</dd>
+        <dt>Q1 (25% of homes cheaper)</dt><dd className="text-right">{formatPrice(d.q1)}</dd>
+        <dt>Median Price</dt><dd className="text-right font-medium text-slate-700">{formatPrice(d.median)}</dd>
+        <dt>Q3 (75% of homes cheaper)</dt><dd className="text-right">{formatPrice(d.q3)}</dd>
+        <dt>Max Price</dt><dd className="text-right">{formatPrice(d.max)}</dd>
       </dl>
     </div>
   );
 };
 
 /**
- * Box plot by bedroom count.
+ * Price range by bedroom count.
  *
- * Shows the price distribution (min, Q1, median, Q3, max) for each
- * bedroom-count group, visualised as stacked bars.
+ * Shows min, Q1 (25th percentile), median, Q3 (75th percentile), and max
+ * prices for each bedroom-count group as a grouped bar chart. All bars
+ * start from 0, with heights representing actual price values.
  */
 export function BedroomBoxPlot({ data }: BedroomBoxPlotProps) {
-  const plotData = prepareBoxPlotData(data);
+  const chartData = prepareChartData(data);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Price Range by Bedroom Count</CardTitle>
         <CardDescription>
-          Median, IQR, and range of prices grouped by bedroom count
+          Price spread for each bedroom group. Q1 means 25% of homes in the
+          group cost less than this price; Q3 means 75% cost less. Hover any
+          bar for exact values.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-72 w-full" role="img" aria-label="Box plot of price by bedroom count">
+        <div className="h-72 w-full" role="img" aria-label="Price range by bedroom count bar chart">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
-              data={plotData}
+              data={chartData}
               margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
-              barCategoryGap="25%"
+              barCategoryGap="20%"
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis
@@ -138,42 +118,12 @@ export function BedroomBoxPlot({ data }: BedroomBoxPlotProps) {
                 }}
               />
               <Tooltip content={<CustomTooltip />} />
-              {/* Full range (min→max): invisible offset + visible height */}
-              <Bar
-                dataKey="rangeOffset"
-                stackId="range"
-                fill="transparent"
-                isAnimationActive={false}
-              />
-              <Bar
-                dataKey="rangeHeight"
-                stackId="range"
-                fill="#e2e8f0"
-                isAnimationActive={false}
-                name="Range"
-              />
-              {/* IQR box (Q1→Q3): invisible offset + visible IQR */}
-              <Bar
-                dataKey="offset"
-                stackId="iqr"
-                fill="transparent"
-                isAnimationActive={false}
-              />
-              <Bar
-                dataKey="iqr"
-                stackId="iqr"
-                fill="#6366f1"
-                isAnimationActive={false}
-                name="IQR"
-              />
-              {/* Median as a thin separate bar */}
-              <Bar
-                dataKey="median"
-                fill="#4f46e5"
-                isAnimationActive={false}
-                barSize={4}
-                name="Median"
-              />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="min" fill="#cbd5e1" name="Min Price" isAnimationActive={false} />
+              <Bar dataKey="q1" fill="#a5b4fc" name="Q1 (25% of homes cheaper)" isAnimationActive={false} />
+              <Bar dataKey="median" fill="#6366f1" name="Median Price" isAnimationActive={false} />
+              <Bar dataKey="q3" fill="#4f46e5" name="Q3 (75% of homes cheaper)" isAnimationActive={false} />
+              <Bar dataKey="max" fill="#3730a3" name="Max Price" isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </div>
