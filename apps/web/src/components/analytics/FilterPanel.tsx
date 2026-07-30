@@ -31,7 +31,7 @@ export function FilterPanel({ filters, onChange, onReset }: FilterPanelProps) {
   );
 
   const activeCount = Object.values(filters).filter(
-    (v) => v !== undefined && v !== 0
+    (v) => v !== undefined
   ).length;
 
   return (

@@ -1,47 +1,55 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { BedroomBoxPlot } from "./BedroomBoxPlot";
+import { FilterPanel } from "./FilterPanel";
 import { KpiCard } from "./KpiCard";
 import { PriceHistogram } from "./PriceHistogram";
 import { PriceScatter } from "./PriceScatter";
 import { generateMarketStats } from "@/lib/mock/analytics";
 import {
+  DEFAULT_FILTERS,
   formatNumber,
   formatPrice,
   type MarketStats,
+  type StatsFilters,
 } from "@/lib/schemas/analytics";
 
+const MOCK_SEED = 42;
+
 export interface AnalyticsDashboardProps {
-  /**
-   * Optional pre-fetched stats. When provided, the dashboard uses them
-   * directly (RSC pattern). When null, generates mock data on the client.
-   */
   initialStats?: MarketStats | null;
 }
 
 /**
  * Analytics dashboard client component.
  *
- * Displays KPI summary cards and three chart visualisations:
- * 1. Price histogram — distribution of property prices
- * 2. Price vs. square footage scatter plot
- * 3. Box plot — price range by bedroom count
+ * Displays KPI summary cards, a filter panel, and three chart visualisations.
+ * Filters constrain the mock data generator, producing deterministic yet
+ * responsive updates. URL sync is handled via the page wrapper.
  *
  * Currently uses mock data (matching the Spring Boot API shape). Will switch
  * to real API calls in Phase 5.
  */
 export function AnalyticsDashboard({ initialStats }: AnalyticsDashboardProps) {
+  const [filters, setFilters] = useState<StatsFilters>(DEFAULT_FILTERS);
+
   const stats = useMemo(
-    () => initialStats ?? generateMarketStats(),
-    [initialStats]
+    () => initialStats ?? generateMarketStats(MOCK_SEED, filters),
+    [initialStats, filters]
   );
+
+  const handleReset = useCallback(() => {
+    setFilters(DEFAULT_FILTERS);
+  }, []);
 
   const { kpis, price_histogram, price_vs_sqft, box_plot_by_bedrooms } = stats;
 
   return (
     <div className="flex flex-col gap-6">
+      <FilterPanel filters={filters} onChange={setFilters} onReset={handleReset} />
+
       {/* KPI cards row */}
       <section
         aria-label="Market summary statistics"
