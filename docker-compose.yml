@@ -1,7 +1,8 @@
 # =============================================================================
 # Property Multi-App Portal — Docker Compose
-# Phase 0: only the ML container is orchestrated here.
-# Web / estimator-api / analytics-api will be added in Phase 6.
+#
+# Phase 3: orchestrates the ML container + Estimator API (FastAPI).
+# Web (Next.js) and Analytics API (Spring Boot) will be added in later phases.
 # =============================================================================
 
 services:
@@ -22,6 +23,37 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
+    restart: unless-stopped
+    networks:
+      - portal-network
+
+  estimator-api:
+    build:
+      context: ./apps/estimator-api
+      dockerfile: Dockerfile
+    container_name: estimator-api
+    ports:
+      - "${ESTIMATOR_API_PORT:-8001}:8001"
+    environment:
+      # Inside the compose network, the ML service is reachable by its
+      # service name on the default port 8000.
+      ML_SERVICE_URL: "http://ml-service:8000"
+      ESTIMATOR_API_HOST: "0.0.0.0"
+      ESTIMATOR_API_PORT: "8001"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+    depends_on:
+      ml-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request, sys; r = urllib.request.urlopen('http://localhost:8001/healthz', timeout=4); sys.exit(0 if r.status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     restart: unless-stopped
     networks:
       - portal-network
