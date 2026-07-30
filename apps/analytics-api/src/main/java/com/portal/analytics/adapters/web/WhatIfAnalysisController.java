@@ -27,8 +27,11 @@ public class WhatIfAnalysisController {
 
     /**
      * Run what-if analysis with custom baseline.
+     *
+     * <p>Endpoint alias at {@code /api/what-if} (for Next.js frontend) and
+     * {@code /api/what-if/analyze} (for clarity / future expansion).
      */
-    @PostMapping("/analyze")
+    @PostMapping({"", "/analyze"})
     public ApiResponse<WhatIfResult> analyze(
             @RequestBody WhatIfRequest request
     ) {

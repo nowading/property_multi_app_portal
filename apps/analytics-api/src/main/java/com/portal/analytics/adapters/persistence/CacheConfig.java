@@ -2,13 +2,11 @@ package com.portal.analytics.adapters.persistence;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.Weigher;
 import com.portal.analytics.domain.MarketStats;
 import com.portal.analytics.domain.ModelInfo;
 import com.portal.analytics.domain.WhatIfResult;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.EnableAspectJAutoProxy;
 
 import java.time.Duration;
 

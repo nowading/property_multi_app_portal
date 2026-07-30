@@ -1,20 +1,38 @@
 import { Suspense } from "react";
 
 import { AnalyticsDashboard } from "@/components/analytics/AnalyticsDashboard";
+import { serverFetch } from "@/lib/server-fetch";
+import type {
+  DatasetResponse,
+  MarketStats,
+} from "@/lib/schemas/analytics";
 
 export const metadata = {
   title: "Market Analysis Dashboard",
 };
 
-/**
- * Analytics page (RSC shell).
- *
- * Delegates all interactivity (chart rendering, filter state, data fetching)
- * to the <AnalyticsDashboard> client component. Wraps it in Suspense
- * because useSearchParams requires a boundary. Uses mock data until the
- * Spring Boot backend is available (Phase 5).
- */
-export default function AnalyticsPage() {
+const ANALYTICS_API_URL =
+  process.env.ANALYTICS_API_URL || "http://localhost:8002";
+
+export default async function AnalyticsPage() {
+  let initialStats: MarketStats | null = null;
+  let initialDataset: DatasetResponse | null = null;
+
+  try {
+    [initialStats, initialDataset] = await Promise.all([
+      serverFetch<MarketStats>(`${ANALYTICS_API_URL}/api/stats`, {
+        next: { revalidate: 300 },
+      }).catch(() => null),
+      serverFetch<DatasetResponse>(
+        `${ANALYTICS_API_URL}/api/dataset?page=1&page_size=50`,
+        { next: { revalidate: 60 } }
+      ).catch(() => null),
+    ]);
+  } catch {
+    initialStats = null;
+    initialDataset = null;
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
@@ -29,7 +47,10 @@ export default function AnalyticsPage() {
       </div>
 
       <Suspense fallback={<p className="text-slate-500">Loading dashboard…</p>}>
-        <AnalyticsDashboard />
+        <AnalyticsDashboard
+          initialStats={initialStats}
+          initialDataset={initialDataset}
+        />
       </Suspense>
     </div>
   );

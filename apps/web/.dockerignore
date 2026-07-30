@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+dist
+.git
+.gitignore
+*.log
+.env
+.env.*
+!.env.example
+coverage
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
+README.md
+PROJECT_PLAN.md

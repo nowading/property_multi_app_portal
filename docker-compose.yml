@@ -1,12 +1,5 @@
-# =============================================================================
-# Property Multi-App Portal — Docker Compose
-#
-# Phase 3-5: orchestrates the ML container, Estimator API (FastAPI),
-#             and Analytics API (Spring Boot).
-# =============================================================================
-
 services:
-  ml-service:
+  ml-container:
     build:
       context: ../house_price_prediction
       dockerfile: Dockerfile
@@ -25,7 +18,7 @@ services:
       start_period: 60s
     restart: unless-stopped
     networks:
-      - portal-network
+      - app-network
 
   estimator-api:
     build:
@@ -35,14 +28,12 @@ services:
     ports:
       - "${ESTIMATOR_API_PORT:-8001}:8001"
     environment:
-      # Inside the compose network, the ML service is reachable by its
-      # service name on the default port 8000.
-      ML_SERVICE_URL: "http://ml-service:8000"
+      ML_SERVICE_URL: "http://ml-container:8000"
       ESTIMATOR_API_HOST: "0.0.0.0"
       ESTIMATOR_API_PORT: "8001"
       LOG_LEVEL: "${LOG_LEVEL:-INFO}"
     depends_on:
-      ml-service:
+      ml-container:
         condition: service_healthy
     healthcheck:
       test:
@@ -56,7 +47,7 @@ services:
       start_period: 15s
     restart: unless-stopped
     networks:
-      - portal-network
+      - app-network
 
   analytics-api:
     build:
@@ -66,11 +57,12 @@ services:
     ports:
       - "${ANALYTICS_API_PORT:-8002}:8002"
     environment:
-      ML_SERVICE_URL: "http://ml-service:8000"
+      ML_SERVICE_URL: "http://ml-container:8000"
+      SERVER_PORT: "8002"
       LOG_LEVEL: "${LOG_LEVEL:-INFO}"
       JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
     depends_on:
-      ml-service:
+      ml-container:
         condition: service_healthy
     healthcheck:
       test:
@@ -84,8 +76,39 @@ services:
       start_period: 20s
     restart: unless-stopped
     networks:
-      - portal-network
+      - app-network
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: web-portal
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      NEXT_PUBLIC_ESTIMATOR_API_URL: "http://estimator-api:8001"
+      NEXT_PUBLIC_ANALYTICS_API_URL: "http://analytics-api:8002"
+      ESTIMATOR_API_URL: "http://estimator-api:8001"
+      ANALYTICS_API_URL: "http://analytics-api:8002"
+    depends_on:
+      estimator-api:
+        condition: service_healthy
+      analytics-api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -qO-
+        - http://localhost:3000/
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - app-network
 
 networks:
-  portal-network:
+  app-network:
     driver: bridge

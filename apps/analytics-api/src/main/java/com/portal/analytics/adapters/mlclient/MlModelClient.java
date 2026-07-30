@@ -15,12 +15,14 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * HTTP client adapter for calling the ML model container.
  *
  * <p>Uses JDK 21's {@link HttpClient} with explicit connect/read timeouts
- * (Connect: 2s, Read: 5s). Implements a simple circuit breaker with
+ * (Connect: 2s, Read: 5s). Implements a thread-safe circuit breaker with
  * fallback to gracefully degrade when the ML service is unavailable.
  */
 @Component
@@ -38,10 +40,10 @@ public class MlModelClient implements ModelInferencePort {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
-    // Simple circuit breaker state
-    private int failureCount = 0;
-    private CircuitState circuitState = CircuitState.CLOSED;
-    private Instant circuitOpenTime = null;
+    // Thread-safe circuit breaker state
+    private final AtomicInteger failureCount = new AtomicInteger(0);
+    private final AtomicReference<CircuitState> circuitState = new AtomicReference<>(CircuitState.CLOSED);
+    private final AtomicReference<Instant> circuitOpenTime = new AtomicReference<>(null);
 
     private enum CircuitState {
         CLOSED, OPEN, HALF_OPEN
@@ -60,7 +62,11 @@ public class MlModelClient implements ModelInferencePort {
 
     @Override
     public PredictionResult predict(PropertyFeatures features) {
-        checkCircuit();
+        // Check circuit breaker first
+        if (!checkCircuit()) {
+            log.debug("Circuit breaker is OPEN, using fallback prediction");
+            return fallbackPrediction(features);
+        }
 
         String url = mlServiceUrl + "/predict";
         try {
@@ -106,6 +112,12 @@ public class MlModelClient implements ModelInferencePort {
 
     @Override
     public ModelInfo getModelInfo() {
+        // Apply circuit breaker pattern
+        if (!checkCircuit()) {
+            log.debug("Circuit breaker is OPEN, using fallback model info");
+            return getFallbackModelInfo();
+        }
+
         String url = mlServiceUrl + "/model-info";
         try {
             HttpRequest request = HttpRequest.newBuilder()
@@ -117,6 +129,7 @@ public class MlModelClient implements ModelInferencePort {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
+                resetCircuit();
                 Map<String, Object> result = objectMapper.readValue(response.body(), Map.class);
 
                 @SuppressWarnings("unchecked")
@@ -129,12 +142,19 @@ public class MlModelClient implements ModelInferencePort {
                         (List<String>) data.getOrDefault("features", List.of()),
                         (String) data.getOrDefault("target", "price")
                 );
+            } else {
+                recordFailure();
+                log.warn("ML service returned status {} for model info", response.statusCode());
+                return getFallbackModelInfo();
             }
         } catch (Exception e) {
-            log.warn("Failed to get model info: {}", e.getMessage());
+            recordFailure();
+            log.warn("Failed to get model info, using fallback: {}", e.getMessage());
+            return getFallbackModelInfo();
         }
+    }
 
-        // Fallback model info
+    private ModelInfo getFallbackModelInfo() {
         return new ModelInfo(
                 "house-price-prediction",
                 "1.0.0",
@@ -171,36 +191,53 @@ public class MlModelClient implements ModelInferencePort {
         return new PredictionResult(fallbackPrice, features, Instant.now());
     }
 
-    private void checkCircuit() {
-        if (circuitState == CircuitState.OPEN) {
-            if (circuitOpenTime != null &&
-                    Instant.now().isAfter(circuitOpenTime.plus(CIRCUIT_OPEN_DURATION))) {
-                circuitState = CircuitState.HALF_OPEN;
-                log.info("Circuit breaker: transitioning to HALF_OPEN");
+    /**
+     * Check circuit breaker state.
+     *
+     * @return true if the circuit is CLOSED or HALF_OPEN (call is allowed),
+     *         false if the circuit is OPEN (call should use fallback)
+     */
+    private boolean checkCircuit() {
+        CircuitState currentState = circuitState.get();
+
+        if (currentState == CircuitState.OPEN) {
+            Instant openTime = circuitOpenTime.get();
+            if (openTime != null &&
+                    Instant.now().isAfter(openTime.plus(CIRCUIT_OPEN_DURATION))) {
+                // Transition to HALF_OPEN
+                if (circuitState.compareAndSet(CircuitState.OPEN, CircuitState.HALF_OPEN)) {
+                    log.info("Circuit breaker: transitioning to HALF_OPEN");
+                    return true; // Allow one probe call
+                }
+                // Another thread already transitioned, check again
+                return checkCircuit();
             } else {
                 log.debug("Circuit breaker: OPEN, using fallback");
-                throw new RuntimeException("Circuit breaker is OPEN");
+                return false;
+            }
+        }
+
+        return true; // CLOSED or HALF_OPEN
+    }
+
+    private void recordFailure() {
+        int failures = failureCount.incrementAndGet();
+        if (failures >= FAILURE_THRESHOLD) {
+            if (circuitState.compareAndSet(CircuitState.CLOSED, CircuitState.OPEN)) {
+                circuitOpenTime.set(Instant.now());
+                log.warn("Circuit breaker: OPEN after {} failures", failures);
             }
         }
     }
 
-    private void recordFailure() {
-        failureCount++;
-        if (failureCount >= FAILURE_THRESHOLD) {
-            circuitState = CircuitState.OPEN;
-            circuitOpenTime = Instant.now();
-            log.warn("Circuit breaker: OPEN after {} failures", failureCount);
-        }
-    }
-
     private void resetCircuit() {
-        failureCount = 0;
-        circuitState = CircuitState.CLOSED;
-        circuitOpenTime = null;
+        failureCount.set(0);
+        circuitState.set(CircuitState.CLOSED);
+        circuitOpenTime.set(null);
     }
 
     /** Visible for testing. */
     CircuitState getCircuitState() {
-        return circuitState;
+        return circuitState.get();
     }
 }

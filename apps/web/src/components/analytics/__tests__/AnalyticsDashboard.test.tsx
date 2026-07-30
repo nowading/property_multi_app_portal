@@ -3,6 +3,18 @@ import { fireEvent, render, screen, act } from "@testing-library/react";
 
 import { AnalyticsDashboard } from "../AnalyticsDashboard";
 import { generateMarketStats } from "@/lib/mock/analytics";
+import { generatePropertyDataset } from "@/lib/mock/dataset";
+import type { StatsFilters } from "@/lib/schemas/analytics";
+
+jest.mock("@/lib/api-analytics", () => ({
+  fetchStats: jest.fn(),
+  fetchDataset: jest.fn(),
+}));
+
+const apiAnalyticsMock = jest.requireMock("@/lib/api-analytics") as {
+  fetchStats: jest.Mock;
+  fetchDataset: jest.Mock;
+};
 
 jest.mock("next/navigation", () => {
   const replace = jest.fn();
@@ -28,22 +40,46 @@ const navMock = jest.requireMock("next/navigation") as {
   __routerReplace: jest.Mock;
 };
 
-describe("AnalyticsDashboard", () => {
-  const getKpiValue = (label: string): string | null => {
-    const labelEl = screen.getByText(label);
-    const card = labelEl.closest(".flex.flex-col.gap-2");
-    if (!card) return null;
-    const valueDiv = card.querySelector(".text-2xl");
-    return valueDiv?.textContent ?? null;
-  };
+function setupDefaultMocks(seed: number = 42) {
+  apiAnalyticsMock.fetchStats.mockImplementation(
+    (filters?: StatsFilters) => {
+      return Promise.resolve(generateMarketStats(seed, filters));
+    }
+  );
 
+  apiAnalyticsMock.fetchDataset.mockImplementation(
+    (page: number, pageSize: number, filters?: StatsFilters) => {
+      const allRows = generatePropertyDataset(seed, filters);
+      const start = (page - 1) * pageSize;
+      const rows = allRows.slice(start, start + pageSize);
+      return Promise.resolve({
+        rows,
+        total: allRows.length,
+        page,
+        page_size: pageSize,
+      });
+    }
+  );
+}
+
+function getKpiValue(label: string): string | null {
+  const labelEl = screen.getByText(label);
+  const card = labelEl.closest(".flex.flex-col.gap-2");
+  if (!card) return null;
+  const valueDiv = card.querySelector(".text-2xl");
+  return valueDiv?.textContent ?? null;
+}
+
+describe("AnalyticsDashboard", () => {
   beforeEach(() => {
     navMock.__reset();
+    setupDefaultMocks();
   });
 
   describe("rendering", () => {
-    it("renders KPI cards with market summary", () => {
-      render(<AnalyticsDashboard />);
+    it("renders KPI cards with market summary (with initialStats)", () => {
+      const stats = generateMarketStats(42);
+      render(<AnalyticsDashboard initialStats={stats} />);
 
       expect(screen.getByText("Total Listings")).toBeInTheDocument();
       expect(screen.getByText("Average Price")).toBeInTheDocument();
@@ -51,8 +87,9 @@ describe("AnalyticsDashboard", () => {
       expect(screen.getByText("Price Range")).toBeInTheDocument();
     });
 
-    it("renders chart sections", () => {
-      render(<AnalyticsDashboard />);
+    it("renders chart sections (with initialStats)", () => {
+      const stats = generateMarketStats(42);
+      render(<AnalyticsDashboard initialStats={stats} />);
 
       expect(screen.getByText("Price Distribution")).toBeInTheDocument();
       expect(screen.getByText("Price vs. Square Footage")).toBeInTheDocument();
@@ -78,11 +115,25 @@ describe("AnalyticsDashboard", () => {
       expect(screen.getByText(expectedPrice)).toBeInTheDocument();
     });
 
-    it("generates mock data when no initial stats provided", () => {
+    it("fetches and displays data when no initialStats provided", async () => {
+      jest.useFakeTimers();
+
       render(<AnalyticsDashboard />);
+
+      expect(screen.getByText("Loading market data...")).toBeInTheDocument();
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText("Total Listings")).toBeInTheDocument();
+      expect(screen.getByText("Average Price")).toBeInTheDocument();
 
       const dollarElements = screen.getAllByText(/\$/);
       expect(dollarElements.length).toBeGreaterThan(0);
+
+      jest.useRealTimers();
     });
 
     it("renders KPI with correct structure", () => {
@@ -93,7 +144,9 @@ describe("AnalyticsDashboard", () => {
     });
 
     it("reads initial filters from URL search params", () => {
-      navMock.__setSearchParams(new URLSearchParams("bedrooms_min=3&distance_max=10"));
+      navMock.__setSearchParams(
+        new URLSearchParams("bedrooms_min=3&distance_max=10")
+      );
 
       render(<AnalyticsDashboard />);
 
@@ -108,17 +161,27 @@ describe("AnalyticsDashboard", () => {
   });
 
   describe("filter integration", () => {
-    it("updates KPI values when filters change (mock data regeneration)", () => {
-      render(<AnalyticsDashboard />);
+    it("updates KPI values when filters change (fetches new data)", async () => {
+      jest.useFakeTimers();
+
+      const stats = generateMarketStats(42);
+      render(<AnalyticsDashboard initialStats={stats} />);
 
       const initialAvgPrice = getKpiValue("Average Price");
 
       const slider = screen.getByLabelText("Min Bedrooms range slider");
       fireEvent.change(slider, { target: { value: "5" } });
 
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+        await Promise.resolve();
+      });
+
       const updatedAvgPrice = getKpiValue("Average Price");
 
       expect(updatedAvgPrice).not.toBe(initialAvgPrice);
+
+      jest.useRealTimers();
     });
 
     it("shows active filter count when filters are applied", () => {
@@ -143,19 +206,22 @@ describe("AnalyticsDashboard", () => {
       expect(screen.getByText(/no filters applied/i)).toBeInTheDocument();
     });
 
-    it("regenerates data deterministically with same filters", () => {
-      const { rerender } = render(<AnalyticsDashboard />);
+    it("regenerates data deterministically with same filters (with initialStats)", () => {
+      const stats = generateMarketStats(42);
+      const { rerender } = render(
+        <AnalyticsDashboard initialStats={stats} />
+      );
 
       const firstRenderPrice = getKpiValue("Average Price");
 
-      rerender(<AnalyticsDashboard />);
+      rerender(<AnalyticsDashboard initialStats={stats} />);
 
       const secondRenderPrice = getKpiValue("Average Price");
 
       expect(firstRenderPrice).toBe(secondRenderPrice);
     });
 
-    it("respects initialStats prop over filter-driven regeneration", () => {
+    it("respects initialStats prop before new data fetch completes", () => {
       const stats = generateMarketStats(99);
       render(<AnalyticsDashboard initialStats={stats} />);
 

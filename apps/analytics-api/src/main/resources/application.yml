@@ -45,6 +45,13 @@ logging:
 spring.cache:
   type: caffeine
 
+# CORS Configuration
+analytics:
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://127.0.0.1:3000
+
 # Jackson Configuration
 spring.jackson:
   date-format: yyyy-MM-dd'T'HH:mm:ss'Z'

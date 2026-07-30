@@ -31,11 +31,6 @@ public class CsvDatasetPort implements DatasetPort {
 
     private static final String CSV_RESOURCE = "data/housing.csv";
 
-    /** Precomputed median features for default baseline. */
-    private static final PropertyFeatures DEFAULT_BASELINE = new PropertyFeatures(
-            2000, 3, 2, 1995, 6000, 5, 7
-    );
-
     private final List<PropertyRow> rows = new ArrayList<>();
     private final Map<String, Long> filterCountsCache = new ConcurrentHashMap<>();
 

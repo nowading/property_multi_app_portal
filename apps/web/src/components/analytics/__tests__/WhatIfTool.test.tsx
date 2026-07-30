@@ -1,14 +1,51 @@
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import { WhatIfTool } from "../WhatIfTool";
 import {
   DEFAULT_WHAT_IF_FEATURES,
   type WhatIfFeatures,
+  type WhatIfResult,
 } from "@/lib/schemas/analytics";
 import { predictPrice, runWhatIfAnalysis } from "@/lib/mock/predict";
 
+const mockPostWhatIf = jest.fn();
+
+jest.mock("@/lib/api-analytics", () => ({
+  postWhatIf: (...args: unknown[]) => mockPostWhatIf(...args),
+}));
+
+jest.mock("@/lib/error-messages", () => ({
+  getErrorMessage: jest.fn((code: string) => `Error: ${code}`),
+}));
+
+function makeMockResult(features: WhatIfFeatures): WhatIfResult {
+  const predicted = predictPrice(features);
+  const baseline = predictPrice(DEFAULT_WHAT_IF_FEATURES);
+  const delta = predicted - baseline;
+  const deltaPercent = baseline !== 0 ? (delta / baseline) * 100 : 0;
+  return {
+    predicted_price: predicted,
+    baseline_price: baseline,
+    delta,
+    delta_percent: Math.round(deltaPercent * 10) / 10,
+    features,
+  };
+}
+
 describe("WhatIfTool", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    mockPostWhatIf.mockReset();
+    mockPostWhatIf.mockImplementation(async (features: WhatIfFeatures) =>
+      makeMockResult(features)
+    );
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   describe("rendering", () => {
     it("renders the tool title and description", () => {
       render(<WhatIfTool />);
@@ -26,21 +63,27 @@ describe("WhatIfTool", () => {
       expect(sliders).toHaveLength(7);
     });
 
-    it("renders predicted, baseline, and delta sections", () => {
+    it("renders predicted, baseline, and delta sections after API load", async () => {
       render(<WhatIfTool />);
+
+      await act(async () => {
+        jest.runAllTimers();
+      });
 
       expect(screen.getByText("Predicted Price")).toBeInTheDocument();
       expect(screen.getByText("Baseline Price")).toBeInTheDocument();
       expect(screen.getByText(/delta vs baseline/i)).toBeInTheDocument();
     });
 
-    it("renders feature values summary", () => {
+    it("renders feature values summary after API load", async () => {
       render(<WhatIfTool />);
 
+      await act(async () => {
+        jest.runAllTimers();
+      });
+
       expect(screen.getByText("Feature Values")).toBeInTheDocument();
-      // Square Footage appears twice (slider label + feature values dt)
       expect(screen.getAllByText(/Square Footage/i).length).toBeGreaterThanOrEqual(2);
-      // Bedrooms appears twice (slider label + feature values dt)
       expect(screen.getAllByText(/Bedrooms/i).length).toBeGreaterThanOrEqual(2);
     });
 
@@ -51,29 +94,94 @@ describe("WhatIfTool", () => {
     });
   });
 
-  describe("prediction", () => {
-    it("shows predicted price based on default features", () => {
+  describe("loading and error states", () => {
+    it("shows loading indicator while fetching", async () => {
+      let resolvePostWhatIf: ((value: WhatIfResult) => void) | null = null;
+      mockPostWhatIf.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolvePostWhatIf = resolve;
+          })
+      );
+
       render(<WhatIfTool />);
 
-      const expected = predictPrice(DEFAULT_WHAT_IF_FEATURES);
+      await act(async () => {
+        jest.advanceTimersByTime(0);
+      });
+
+      expect(screen.getByTestId("loading-indicator")).toBeInTheDocument();
+
+      await act(async () => {
+        resolvePostWhatIf?.(makeMockResult(DEFAULT_WHAT_IF_FEATURES));
+      });
+    });
+
+    it("shows error card when API fails", async () => {
+      mockPostWhatIf.mockRejectedValueOnce(new (require("@/lib/api").ApiError)("NETWORK_ERROR", "Network error"));
+
+      render(<WhatIfTool />);
+
+      await act(async () => {
+        jest.runAllTimers();
+      });
+
+      expect(screen.getByTestId("error-card")).toBeInTheDocument();
+      expect(screen.getByText(/Error:/)).toBeInTheDocument();
+    });
+
+    it("shows 'Click to analyze' when result is null and not loading", () => {
+      // Render without triggering the effect (no timers)
+      // This is the initial state before the effect runs
+      render(<WhatIfTool />);
+
+      // Before timers run, isLoading=false and result=null
+      // The loading indicator appears because isLoading is set to true in fetchPrediction
+      // But fetchPrediction is called inside setTimeout(0), so it won't run until timers advance
+      // Initially: isLoading=false, result=null, so "Click to analyze" should show
+      expect(screen.getByText(/click to analyze/i)).toBeInTheDocument();
+    });
+  });
+
+  describe("prediction", () => {
+    it("shows predicted price based on default features", async () => {
+      render(<WhatIfTool />);
+
+      await act(async () => {
+        jest.runAllTimers();
+      });
+
       const priceEl = screen.getByTestId("predicted-price");
       expect(priceEl.textContent).toContain("$");
     });
 
-    it("updates predicted price when a slider changes", () => {
+    it("updates predicted price when a slider changes", async () => {
       render(<WhatIfTool />);
+
+      await act(async () => {
+        jest.runAllTimers();
+      });
 
       const initialPrice = screen.getByTestId("predicted-price").textContent;
 
       const sqftSlider = screen.getByLabelText(/square footage slider/i);
       fireEvent.change(sqftSlider, { target: { value: "3000" } });
 
+      // Advance 300ms debounce + API call
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
       const updatedPrice = screen.getByTestId("predicted-price").textContent;
       expect(updatedPrice).not.toBe(initialPrice);
     });
 
-    it("recalculates delta when features change", () => {
+    it("recalculates delta when features change", async () => {
       render(<WhatIfTool />);
+
+      await act(async () => {
+        jest.runAllTimers();
+      });
 
       const deltaText = screen.getByText(/delta vs baseline/i).parentElement;
       const initialDelta = deltaText?.querySelector("p:last-child")?.textContent;
@@ -81,71 +189,116 @@ describe("WhatIfTool", () => {
       const bedsSlider = screen.getByLabelText(/bedrooms slider/i);
       fireEvent.change(bedsSlider, { target: { value: "6" } });
 
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
       const updatedDelta = deltaText?.querySelector("p:last-child")?.textContent;
       expect(updatedDelta).not.toBe(initialDelta);
     });
 
-    it("shows positive delta with green color when price increases", () => {
+    it("shows positive delta with green color when price increases", async () => {
       render(<WhatIfTool />);
 
-      // Increase sqft significantly
+      await act(async () => {
+        jest.runAllTimers();
+      });
+
       const sqftSlider = screen.getByLabelText(/square footage slider/i);
       fireEvent.change(sqftSlider, { target: { value: "5000" } });
 
-      // The delta div is the parent of the "Delta vs baseline" paragraph
-      const deltaSection = screen.getByText(/delta vs baseline/i)
-        .parentElement;
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      const deltaSection = screen.getByText(/delta vs baseline/i).parentElement;
       expect(deltaSection).toHaveClass("bg-emerald-50");
     });
 
-    it("shows negative delta with red color when price decreases", () => {
+    it("shows negative delta with red color when price decreases", async () => {
       render(<WhatIfTool />);
 
-      // Decrease sqft significantly
+      await act(async () => {
+        jest.runAllTimers();
+      });
+
       const sqftSlider = screen.getByLabelText(/square footage slider/i);
       fireEvent.change(sqftSlider, { target: { value: "500" } });
 
-      const deltaSection = screen.getByText(/delta vs baseline/i)
-        .parentElement;
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      const deltaSection = screen.getByText(/delta vs baseline/i).parentElement;
       expect(deltaSection).toHaveClass("bg-rose-50");
     });
   });
 
   describe("reset", () => {
-    it("resets features to baseline when reset is clicked", () => {
+    it("resets features to baseline when reset is clicked", async () => {
       render(<WhatIfTool />);
+
+      await act(async () => {
+        jest.runAllTimers();
+      });
 
       const sqftSlider = screen.getByLabelText(/square footage slider/i);
       fireEvent.change(sqftSlider, { target: { value: "5000" } });
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
 
       const changedPrice = screen.getByTestId("predicted-price").textContent;
 
       fireEvent.click(screen.getByText(/reset to baseline/i));
 
+      await act(async () => {
+        jest.runAllTimers();
+      });
+
       const resetPrice = screen.getByTestId("predicted-price").textContent;
       expect(resetPrice).not.toBe(changedPrice);
     });
 
-    it("returns to exact default values after reset", () => {
+    it("returns to exact default values after reset", async () => {
       render(<WhatIfTool />);
+
+      await act(async () => {
+        jest.runAllTimers();
+      });
 
       const sqftSlider = screen.getByLabelText(/square footage slider/i);
       fireEvent.change(sqftSlider, { target: { value: "500" } });
 
       fireEvent.click(screen.getByText(/reset to baseline/i));
 
-      // The sqft slider should return to default 2000 (as string)
+      await act(async () => {
+        jest.runAllTimers();
+      });
+
       expect(sqftSlider).toHaveValue("2000");
     });
   });
 
   describe("onChange callback", () => {
-    it("calls onChange with prediction result when features change", () => {
+    it("calls onChange with prediction result when features change", async () => {
       const handleChange = jest.fn();
       render(<WhatIfTool onChange={handleChange} />);
 
+      await act(async () => {
+        jest.runAllTimers();
+      });
+
+      // Initial fetch should NOT call onChange
+      expect(handleChange).not.toHaveBeenCalled();
+
       const bedsSlider = screen.getByLabelText(/bedrooms slider/i);
       fireEvent.change(bedsSlider, { target: { value: "5" } });
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
 
       expect(handleChange).toHaveBeenCalledTimes(1);
       expect(handleChange.mock.calls[0][0]).toHaveProperty("predicted_price");
@@ -153,11 +306,22 @@ describe("WhatIfTool", () => {
       expect(handleChange.mock.calls[0][0]).toHaveProperty("delta");
     });
 
-    it("calls onChange when reset is clicked", () => {
+    it("calls onChange when reset is clicked", async () => {
       const handleChange = jest.fn();
       render(<WhatIfTool onChange={handleChange} />);
 
+      await act(async () => {
+        jest.runAllTimers();
+      });
+
+      // Initial fetch should NOT call onChange
+      expect(handleChange).not.toHaveBeenCalled();
+
       fireEvent.click(screen.getByText(/reset to baseline/i));
+
+      await act(async () => {
+        jest.runAllTimers();
+      });
 
       expect(handleChange).toHaveBeenCalledTimes(1);
     });
@@ -185,14 +349,12 @@ describe("WhatIfTool", () => {
     it("slider values are displayed next to labels", () => {
       render(<WhatIfTool />);
 
-      // Default bedrooms is 3 - check the span next to the label has "3"
       const bedroomsLabel = screen.getByLabelText(/bedrooms slider/i);
       const bedroomsValueSpan = bedroomsLabel
         .closest(".flex.flex-col.gap-2")
         ?.querySelector("span");
       expect(bedroomsValueSpan?.textContent).toContain("3");
 
-      // Default sqft is 2000 - check the span next to the label has "2000"
       const sqftLabel = screen.getByLabelText(/square footage slider/i);
       const sqftValueSpan = sqftLabel
         .closest(".flex.flex-col.gap-2")

@@ -24,6 +24,17 @@ public record PropertyFeatures(
         double distanceToCityCenter,
         double schoolRating
 ) {
+    /**
+     * Default baseline features representing median market values.
+     *
+     * <p>Single source of truth shared by {@code WhatIfAnalysisService},
+     * {@code CsvDatasetPort}, and any other consumer needing default
+     * property features.
+     */
+    public static final PropertyFeatures DEFAULT_BASELINE = new PropertyFeatures(
+            2000, 3, 2, 1995, 6000, 5, 7
+    );
+
     public PropertyFeatures {
         int currentYear = java.time.Year.now().getValue();
 

@@ -11,15 +11,43 @@ import {
   CardTitle,
 } from "@/components/ui/Card";
 import { APP_ENTRIES, SERVICES } from "@/lib/services";
+import { checkHealth, type HealthStatus } from "@/lib/server-fetch";
 
-/**
- * Portal landing page (React Server Component).
- *
- * Renders the portal overview, two application entry cards, and the
- * underlying service architecture. No client interactivity — all links
- * are server-rendered anchors via `next/link`.
- */
-export default function HomePage() {
+const ESTIMATOR_API_URL =
+  process.env.ESTIMATOR_API_URL || "http://localhost:8001";
+const ANALYTICS_API_URL =
+  process.env.ANALYTICS_API_URL || "http://localhost:8002";
+
+interface ServiceWithHealth {
+  name: string;
+  technology: string;
+  port: number;
+  role: string;
+  healthEndpoint: string;
+  health: HealthStatus;
+}
+
+export default async function HomePage() {
+  const [estimatorHealth, analyticsHealth, mlHealth] = await Promise.all([
+    checkHealth(`${ESTIMATOR_API_URL}/healthz`),
+    checkHealth(`${ANALYTICS_API_URL}/actuator/health`),
+    checkHealth(`${ESTIMATOR_API_URL}/model-info`).then(
+      () => ({ status: "healthy" as const }),
+      () => ({ status: "down" as const })
+    ),
+  ]);
+
+  const healthMap: Record<string, HealthStatus> = {
+    "Estimator API": estimatorHealth,
+    "Analytics API": analyticsHealth,
+    "ML Container": mlHealth,
+  };
+
+  const servicesWithHealth: ServiceWithHealth[] = SERVICES.map((svc) => ({
+    ...svc,
+    health: healthMap[svc.name] ?? { status: "down" as const },
+  }));
+
   return (
     <div className="flex flex-col gap-10">
       {/* Hero */}
@@ -97,19 +125,22 @@ export default function HomePage() {
           </h2>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
-          {SERVICES.map((svc) => (
+          {servicesWithHealth.map((svc) => (
             <Card key={svc.name}>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2">
                   <CardTitle className="text-base">{svc.name}</CardTitle>
-                  <Badge variant="default">:{svc.port}</Badge>
+                  <div className="flex items-center gap-1.5">
+                    <HealthBadge status={svc.health.status} />
+                    <Badge variant="default">:{svc.port}</Badge>
+                  </div>
                 </div>
                 <CardDescription>{svc.technology}</CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-slate-600">{svc.role}</p>
                 <p className="mt-2 text-xs text-slate-400">
-                  Health:{" "}
+                  Endpoint:{" "}
                   <code className="font-mono">{svc.healthEndpoint}</code>
                 </p>
               </CardContent>
@@ -118,5 +149,40 @@ export default function HomePage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function HealthBadge({ status }: { status: HealthStatus["status"] }) {
+  const variants = {
+    healthy: {
+      label: "Healthy",
+      className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      dot: "bg-emerald-500",
+    },
+    unhealthy: {
+      label: "Degraded",
+      className: "bg-amber-50 text-amber-700 border-amber-200",
+      dot: "bg-amber-500",
+    },
+    down: {
+      label: "Down",
+      className: "bg-rose-50 text-rose-700 border-rose-200",
+      dot: "bg-rose-500",
+    },
+  };
+
+  const v = variants[status];
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${v.className}`}
+      aria-label={`Service is ${status}`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${v.dot}`}
+        aria-hidden="true"
+      />
+      {v.label}
+    </span>
   );
 }

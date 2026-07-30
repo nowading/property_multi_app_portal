@@ -18,11 +18,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class WhatIfAnalysisService {
 
-    /** Default baseline features (median market values). */
-    public static final PropertyFeatures DEFAULT_BASELINE = new PropertyFeatures(
-            2000, 3, 2, 1995, 6000, 5, 7
-    );
-
     private final ModelInferencePort modelInferencePort;
     private final Cache<String, WhatIfResult> whatIfCache;
 
@@ -41,7 +36,7 @@ public class WhatIfAnalysisService {
      * @return what-if result with predicted price, baseline, and delta
      */
     public WhatIfResult analyze(PropertyFeatures modifiedFeatures, PropertyFeatures baselineFeatures) {
-        PropertyFeatures baseline = baselineFeatures != null ? baselineFeatures : DEFAULT_BASELINE;
+        PropertyFeatures baseline = baselineFeatures != null ? baselineFeatures : PropertyFeatures.DEFAULT_BASELINE;
 
         String cacheKey = toCacheKey(modifiedFeatures, baseline);
 
@@ -81,6 +76,6 @@ public class WhatIfAnalysisService {
      * @return what-if result
      */
     public WhatIfResult analyzeWithDefaultBaseline(PropertyFeatures modifiedFeatures) {
-        return analyze(modifiedFeatures, DEFAULT_BASELINE);
+        return analyze(modifiedFeatures, PropertyFeatures.DEFAULT_BASELINE);
     }
 }

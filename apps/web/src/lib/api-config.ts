@@ -11,4 +11,19 @@ export const ESTIMATOR_API_URL =
   process.env.NEXT_PUBLIC_ESTIMATOR_API_URL || "http://localhost:8001";
 
 export const ANALYTICS_API_URL =
-  process.env.NEXT_PUBLIC_ANALYTICS_API_URL || "http://localhost:8002";
+  process.env.NEXT_PUBLIC_ANALYTICS_API_URL || "http://localhost:8002"
+
+export const ANALYTICS_API_PATHS = {
+  STATS: "/api/stats",
+  DATASET: "/api/dataset",
+  WHAT_IF: "/api/what-if",
+  MODEL_INFO: "/api/model-info",
+} as const
+
+export const ESTIMATOR_API_PATHS = {
+  PREDICT: "/predict",
+  PREDICT_BATCH: "/predict-batch",
+  HISTORY: "/history",
+  MODEL_INFO: "/model-info",
+  HEALTHZ: "/healthz",
+} as const

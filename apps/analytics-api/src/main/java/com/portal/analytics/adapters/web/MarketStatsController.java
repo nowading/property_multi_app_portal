@@ -26,9 +26,12 @@ public class MarketStatsController {
     }
 
     /**
-     * Get aggregate market statistics with optional filters.
+     * Get aggregate market statistics with optional filters (GET).
+     *
+     * <p>Endpoint alias at {@code /api/stats} (for Next.js frontend) and
+     * {@code /api/stats/aggregate} (for clarity / future expansion).
      */
-    @GetMapping("/aggregate")
+    @GetMapping({"", "/aggregate"})
     public ApiResponse<MarketStats> getAggregateStats(
             @RequestParam(required = false) Integer bedroomsMin,
             @RequestParam(required = false) Integer bedroomsMax,
@@ -57,7 +60,7 @@ public class MarketStatsController {
     /**
      * Get aggregate stats with JSON filter body (POST).
      */
-    @PostMapping("/aggregate")
+    @PostMapping({"", "/aggregate"})
     public ApiResponse<MarketStats> getAggregateStats(@RequestBody(required = false) StatsFilters filters) {
         log.info("Getting aggregate stats with JSON filters");
 

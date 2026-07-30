@@ -1,8 +1,8 @@
-"use client";
+"use client"
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react"
 
-import { ApiError, apiFetch } from "@/lib/api";
+import { ApiError, apiFetch, type ApiFetchOptions } from "@/lib/api"
 
 /**
  * Module-level in-memory cache for GET responses (per §3.1 of PROJECT_PLAN.md).
@@ -17,37 +17,55 @@ import { ApiError, apiFetch } from "@/lib/api";
  */
 
 interface CacheEntry<T> {
-  data: T;
-  expiresAt: number;
+  data: T
+  expiresAt: number
 }
 
-const cache = new Map<string, CacheEntry<unknown>>();
+const cache = new Map<string, CacheEntry<unknown>>()
 
-const DEFAULT_TTL_MS = 60_000;
+const DEFAULT_TTL_MS = 60_000
 
 /** Evict a single URL from the cache, or all entries when no key is given. */
 export function invalidate(key?: string): void {
   if (key) {
-    cache.delete(key);
+    cache.delete(key)
   } else {
-    cache.clear();
+    cache.clear()
   }
 }
 
 /** Test-only helper to inspect cache size. */
 export function __cacheSize(): number {
-  return cache.size;
+  return cache.size
 }
 
 export interface UseApiState<T> {
-  data: T | null;
-  error: ApiError | null;
-  isLoading: boolean;
+  data: T | null
+  error: ApiError | null
+  isLoading: boolean
 }
 
 export interface UseApiResult<T> extends UseApiState<T> {
   /** Force a refetch bypassing the cache. */
-  refetch: () => void;
+  refetch: () => void
+}
+
+/** Options for GET requests (cached). */
+export interface UseApiGetOptions {
+  ttlMs?: number
+}
+
+/** Options for POST requests (uncached). */
+export interface UseApiPostOptions {
+  method: "POST"
+  body: string | object
+}
+
+/** Check if the given options object is a POST options variant. */
+function isPostOptions(
+  options: UseApiGetOptions | UseApiPostOptions | undefined
+): options is UseApiPostOptions {
+  return options !== undefined && "method" in options && options.method === "POST"
 }
 
 /**
@@ -58,58 +76,80 @@ export interface UseApiResult<T> extends UseApiState<T> {
  *   On cache hit (not expired), returns cached data synchronously.
  * - On cache miss, calls `apiFetch` and stores the result with TTL.
  * - `refetch()` bypasses the cache and re-fetches.
+ *
+ * POST requests (when `options.method === 'POST'`):
+ * - Are never cached — the body is included in the fetch call.
+ * - `refetch()` re-sends the same POST with the same body.
  */
 export function useApi<T>(
   url: string | null,
-  options?: { ttlMs?: number }
+  options?: UseApiGetOptions | UseApiPostOptions
 ): UseApiResult<T> {
   const [state, setState] = useState<UseApiState<T>>({
     data: null,
     error: null,
     isLoading: url !== null,
-  });
+  })
 
-  const ttl = options?.ttlMs ?? DEFAULT_TTL_MS;
+  const isPost = isPostOptions(options)
+  const ttl = !isPost ? (options as UseApiGetOptions)?.ttlMs ?? DEFAULT_TTL_MS : 0
 
   const fetchData = useCallback(
     async (bypassCache: boolean) => {
       if (url === null) {
-        setState({ data: null, error: null, isLoading: false });
-        return;
+        setState({ data: null, error: null, isLoading: false })
+        return
       }
 
-      if (!bypassCache) {
-        const cached = cache.get(url);
+      if (!isPost && !bypassCache) {
+        const cached = cache.get(url)
         if (cached && cached.expiresAt > Date.now()) {
-          setState({ data: cached.data as T, error: null, isLoading: false });
-          return;
+          setState({ data: cached.data as T, error: null, isLoading: false })
+          return
         }
       }
 
-      setState((prev) => ({ ...prev, isLoading: true, error: null }));
+      setState((prev) => ({ ...prev, isLoading: true, error: null }))
 
       try {
-        const data = await apiFetch<T>(url);
-        cache.set(url, { data, expiresAt: Date.now() + ttl });
-        setState({ data, error: null, isLoading: false });
+        const fetchOptions: ApiFetchOptions = {}
+
+        if (isPost) {
+          const postOpts = options as UseApiPostOptions
+          fetchOptions.method = "POST"
+          fetchOptions.headers = { "Content-Type": "application/json" }
+          fetchOptions.body =
+            typeof postOpts.body === "string"
+              ? postOpts.body
+              : JSON.stringify(postOpts.body)
+        }
+
+        const data = await apiFetch<T>(url, fetchOptions)
+
+        if (!isPost) {
+          cache.set(url, { data, expiresAt: Date.now() + ttl })
+        }
+
+        setState({ data, error: null, isLoading: false })
       } catch (err) {
         const error =
           err instanceof ApiError
             ? err
-            : new ApiError("UNKNOWN_ERROR", String(err));
-        setState({ data: null, error, isLoading: false });
+            : new ApiError("UNKNOWN_ERROR", String(err))
+        setState({ data: null, error, isLoading: false })
       }
     },
-    [url, ttl]
-  );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [url, isPost, ttl, options]
+  )
 
   useEffect(() => {
-    fetchData(false);
-  }, [fetchData]);
+    fetchData(false)
+  }, [fetchData])
 
   const refetch = useCallback(() => {
-    fetchData(true);
-  }, [fetchData]);
+    fetchData(true)
+  }, [fetchData])
 
-  return { ...state, refetch };
+  return { ...state, refetch }
 }

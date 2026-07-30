@@ -34,7 +34,7 @@ class WhatIfAnalysisServiceTest {
     @DisplayName("should compute delta correctly")
     void computeDelta() {
         PropertyFeatures modified = new PropertyFeatures(3000, 4, 2, 2000, 8000, 3, 8);
-        PropertyFeatures baseline = WhatIfAnalysisService.DEFAULT_BASELINE;
+        PropertyFeatures baseline = PropertyFeatures.DEFAULT_BASELINE;
 
         WhatIfResult result = service.analyze(modified, baseline);
 
@@ -57,7 +57,7 @@ class WhatIfAnalysisServiceTest {
     @Test
     @DisplayName("should compute zero delta when features match baseline")
     void zeroDelta() {
-        PropertyFeatures baseline = WhatIfAnalysisService.DEFAULT_BASELINE;
+        PropertyFeatures baseline = PropertyFeatures.DEFAULT_BASELINE;
 
         WhatIfResult result = service.analyze(baseline, baseline);
 
