@@ -1,8 +1,8 @@
 # =============================================================================
 # Property Multi-App Portal — Docker Compose
 #
-# Phase 3: orchestrates the ML container + Estimator API (FastAPI).
-# Web (Next.js) and Analytics API (Spring Boot) will be added in later phases.
+# Phase 3-5: orchestrates the ML container, Estimator API (FastAPI),
+#             and Analytics API (Spring Boot).
 # =============================================================================
 
 services:
@@ -54,6 +54,34 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+    restart: unless-stopped
+    networks:
+      - portal-network
+
+  analytics-api:
+    build:
+      context: ./apps/analytics-api
+      dockerfile: Dockerfile
+    container_name: analytics-api
+    ports:
+      - "${ANALYTICS_API_PORT:-8002}:8002"
+    environment:
+      ML_SERVICE_URL: "http://ml-service:8000"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+    depends_on:
+      ml-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --spider
+        - http://localhost:8002/actuator/health
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
     networks:
       - portal-network
