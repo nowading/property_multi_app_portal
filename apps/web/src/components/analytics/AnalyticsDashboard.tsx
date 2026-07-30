@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { BedroomBoxPlot } from "./BedroomBoxPlot";
 import { DataTable } from "./DataTable";
+import { ExportPanel } from "./ExportPanel";
 import { FilterPanel } from "./FilterPanel";
 import { KpiCard } from "./KpiCard";
 import { PriceHistogram } from "./PriceHistogram";
@@ -125,6 +126,9 @@ export function AnalyticsDashboard({
   return (
     <div className="flex flex-col gap-6">
       <FilterPanel filters={filters} onChange={setFilters} onReset={handleReset} />
+
+      {/* Export controls */}
+      <ExportPanel stats={stats} dataset={dataset} />
 
       {/* KPI cards row */}
       <section
