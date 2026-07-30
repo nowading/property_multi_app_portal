@@ -151,13 +151,15 @@ describe("EstimatorClient", () => {
     expect(init.method).toBe("POST");
     expect(init.cache).toBe("no-store");
     expect(JSON.parse(init.body)).toEqual({
-      square_footage: 2000,
-      bedrooms: 3,
-      bathrooms: 2.5,
-      year_built: 1990,
-      lot_size: 5000,
-      distance_to_city_center: 5.5,
-      school_rating: 8,
+      features: {
+        square_footage: 2000,
+        bedrooms: 3,
+        bathrooms: 2.5,
+        year_built: 1990,
+        lot_size: 5000,
+        distance_to_city_center: 5.5,
+        school_rating: 8,
+      },
     });
   });
 });

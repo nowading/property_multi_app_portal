@@ -66,7 +66,7 @@ export function EstimatorClient({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(values),
+          body: JSON.stringify({ features: values }),
           // Per §3.1: predictions are never cached.
           cache: "no-store",
         }
