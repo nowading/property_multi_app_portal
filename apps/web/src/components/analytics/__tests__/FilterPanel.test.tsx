@@ -79,6 +79,39 @@ describe("FilterPanel", () => {
         distance_max: 15,
       });
     });
+
+    it("syncs bedrooms_max when bedrooms_min exceeds max", () => {
+      const filters: StatsFilters = { bedrooms_min: 2, bedrooms_max: 3 };
+      const { onChange } = renderPanel(filters);
+      const slider = screen.getByLabelText("Min Bedrooms range slider");
+      fireEvent.change(slider, { target: { value: "5" } });
+      expect(onChange).toHaveBeenCalledWith({
+        bedrooms_min: 5,
+        bedrooms_max: 5,
+      });
+    });
+
+    it("syncs bedrooms_min when bedrooms_max goes below min", () => {
+      const filters: StatsFilters = { bedrooms_min: 4, bedrooms_max: 6 };
+      const { onChange } = renderPanel(filters);
+      const slider = screen.getByLabelText("Max Bedrooms range slider");
+      fireEvent.change(slider, { target: { value: "2" } });
+      expect(onChange).toHaveBeenCalledWith({
+        bedrooms_min: 2,
+        bedrooms_max: 2,
+      });
+    });
+
+    it("syncs year_built_max when year_built_min exceeds max", () => {
+      const filters: StatsFilters = { year_built_min: 1980, year_built_max: 2000 };
+      const { onChange } = renderPanel(filters);
+      const slider = screen.getByLabelText("Min Year Built range slider");
+      fireEvent.change(slider, { target: { value: "2010" } });
+      expect(onChange).toHaveBeenCalledWith({
+        year_built_min: 2010,
+        year_built_max: 2010,
+      });
+    });
   });
 
   describe("reset", () => {
@@ -108,10 +141,10 @@ describe("FilterPanel", () => {
       expect(zeroLabels.length).toBeGreaterThanOrEqual(1);
     });
 
-    it("slider is disabled when filter is undefined", () => {
+    it("slider is enabled when filter is undefined (user can set a value)", () => {
       renderPanel();
       const slider = screen.getByLabelText("Min Bedrooms range slider");
-      expect(slider).toBeDisabled();
+      expect(slider).not.toBeDisabled();
     });
 
     it("slider is enabled when filter has a value", () => {

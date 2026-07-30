@@ -25,7 +25,34 @@ export interface FilterPanelProps {
 export function FilterPanel({ filters, onChange, onReset }: FilterPanelProps) {
   const handleChange = useCallback(
     (key: keyof StatsFilters, value: number | undefined) => {
-      onChange({ ...filters, [key]: value });
+      const newFilters: StatsFilters = { ...filters, [key]: value };
+
+      // Keep paired min/max filters consistent
+      if (value !== undefined) {
+        if (key === "bedrooms_min") {
+          const max = newFilters.bedrooms_max;
+          if (max !== undefined && value > max) {
+            newFilters.bedrooms_max = value;
+          }
+        } else if (key === "bedrooms_max") {
+          const min = newFilters.bedrooms_min;
+          if (min !== undefined && value < min) {
+            newFilters.bedrooms_min = value;
+          }
+        } else if (key === "year_built_min") {
+          const max = newFilters.year_built_max;
+          if (max !== undefined && value > max) {
+            newFilters.year_built_max = value;
+          }
+        } else if (key === "year_built_max") {
+          const min = newFilters.year_built_min;
+          if (min !== undefined && value < min) {
+            newFilters.year_built_min = value;
+          }
+        }
+      }
+
+      onChange(newFilters);
     },
     [filters, onChange]
   );
@@ -113,9 +140,8 @@ function FilterSlider({
           max={max}
           step={step}
           value={hasValue ? value : max}
-          disabled={!hasValue}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-primary-600 disabled:opacity-40"
+          className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-primary-600"
           aria-label={`${label} range slider`}
         />
         {hasValue && (
