@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -32,14 +32,27 @@ const FILTER_PARAM_KEYS: (keyof StatsFilters)[] = [
   "school_rating_min",
 ];
 
+const FILTER_KEY_TO_PARAM: Record<string, string> = {
+  bedrooms_min: "bedroomsMin",
+  bedrooms_max: "bedroomsMax",
+  year_built_min: "yearBuiltMin",
+  year_built_max: "yearBuiltMax",
+  distance_max: "distanceMax",
+  school_rating_min: "schoolRatingMin",
+};
+
+const PARAM_TO_FILTER_KEY: Record<string, string> = Object.fromEntries(
+  Object.entries(FILTER_KEY_TO_PARAM).map(([k, v]) => [v, k])
+);
+
 function parseFiltersFromUrl(searchParams: URLSearchParams): StatsFilters {
   const filters: StatsFilters = {};
-  for (const key of FILTER_PARAM_KEYS) {
-    const val = searchParams.get(key);
+  for (const [paramName, filterKey] of Object.entries(PARAM_TO_FILTER_KEY)) {
+    const val = searchParams.get(paramName);
     if (val !== null) {
       const num = Number(val);
       if (!Number.isNaN(num)) {
-        filters[key] = num;
+        (filters as Record<string, number>)[filterKey] = num;
       }
     }
   }
@@ -51,7 +64,8 @@ function buildUrlFromFilters(filters: StatsFilters): URLSearchParams {
   for (const key of FILTER_PARAM_KEYS) {
     const val = filters[key];
     if (val !== undefined) {
-      params.set(key, String(val));
+      const paramName = FILTER_KEY_TO_PARAM[key] || key;
+      params.set(paramName, String(val));
     }
   }
   return params;
@@ -79,8 +93,8 @@ export function AnalyticsDashboard({
     return DEFAULT_FILTERS;
   });
 
-  const isInitialMount = useRef(true);
-  const dataLoadedRef = useRef(false);
+  const isFirstDataLoad = useRef(true);
+  const isFirstUrlUpdate = useRef(true);
 
   const [stats, setStats] = useState<MarketStats | null>(initialStats ?? null);
   const [datasetRows, setDatasetRows] = useState<PropertyRow[]>(
@@ -122,9 +136,13 @@ export function AnalyticsDashboard({
     []
   );
 
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
+
   useEffect(() => {
-    if (!dataLoadedRef.current) {
-      dataLoadedRef.current = true;
+    // Skip fetch on first render if RSC provided initial data
+    if (isFirstDataLoad.current) {
+      isFirstDataLoad.current = false;
       if (initialStats || initialDataset) {
         return;
       }
@@ -132,7 +150,7 @@ export function AnalyticsDashboard({
 
     const controller = new AbortController();
     const timeout = setTimeout(() => {
-      loadData(filters, controller.signal);
+      loadData(filtersRef.current, controller.signal);
     }, 300);
 
     return () => {
@@ -142,8 +160,8 @@ export function AnalyticsDashboard({
   }, [filters, initialStats, initialDataset, loadData]);
 
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
+    if (isFirstUrlUpdate.current) {
+      isFirstUrlUpdate.current = false;
       return;
     }
     if (typeof router === "undefined") return;
@@ -242,7 +260,7 @@ export function AnalyticsDashboard({
               label="Average Price"
               value={formatPrice(displayStats.kpis.avg_price)}
               trend="up"
-              trendValue={`${formatPrice(displayStats.kpis.avg_price_per_sqft)}/sqft`}
+              trendValue={`${formatPrice(displayStats.kpis.avg_price_per_sq_ft)}/sqft`}
               description="Price per square foot"
             />
             <KpiCard

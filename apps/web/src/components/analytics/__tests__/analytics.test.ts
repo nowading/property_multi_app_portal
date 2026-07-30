@@ -38,7 +38,7 @@ describe("generateMarketStats", () => {
     expect(kpis.min_price).toBeLessThan(kpis.max_price);
     expect(kpis.std_dev_price).toBeGreaterThan(0);
     expect(kpis.avg_square_footage).toBeGreaterThan(0);
-    expect(kpis.avg_price_per_sqft).toBeGreaterThan(0);
+    expect(kpis.avg_price_per_sq_ft).toBeGreaterThan(0);
   });
 
   it("produces 10 histogram bins", () => {

@@ -20,8 +20,28 @@ import type {
 } from "@/lib/schemas/analytics"
 
 /**
+ * Mapping from frontend snake_case filter keys to backend camelCase query params.
+ */
+const FILTER_KEY_TO_PARAM: Record<string, string> = {
+  bedrooms_min: "bedroomsMin",
+  bedrooms_max: "bedroomsMax",
+  year_built_min: "yearBuiltMin",
+  year_built_max: "yearBuiltMax",
+  distance_max: "distanceMax",
+  school_rating_min: "schoolRatingMin",
+  school_rating_max: "schoolRatingMax",
+  price_min: "priceMin",
+  price_max: "priceMax",
+}
+
+const PARAM_TO_FILTER_KEY: Record<string, string> = Object.fromEntries(
+  Object.entries(FILTER_KEY_TO_PARAM).map(([k, v]) => [v, k])
+)
+
+/**
  * Build a query string from an optional StatsFilters object.
  * Only defined (non-undefined) numeric fields are included.
+ * Converts snake_case filter keys to camelCase for the Java backend.
  */
 function buildFilterParams(filters: StatsFilters | undefined): string {
   if (!filters) return ""
@@ -29,7 +49,8 @@ function buildFilterParams(filters: StatsFilters | undefined): string {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(filters)) {
     if (value !== undefined) {
-      params.set(key, String(value))
+      const paramName = FILTER_KEY_TO_PARAM[key] || key
+      params.set(paramName, String(value))
     }
   }
   const qs = params.toString()
@@ -57,17 +78,36 @@ export function buildDatasetUrl(
 ): string {
   const params = new URLSearchParams()
   params.set("page", String(page))
-  params.set("page_size", String(pageSize))
+  params.set("pageSize", String(pageSize))
 
   if (filters) {
     for (const [key, value] of Object.entries(filters)) {
       if (value !== undefined) {
-        params.set(key, String(value))
+        const paramName = FILTER_KEY_TO_PARAM[key] || key
+        params.set(paramName, String(value))
       }
     }
   }
 
   return `${baseUrl}${ANALYTICS_API_PATHS.DATASET}?${params.toString()}`
+}
+
+/**
+ * Parse filter query params from a URLSearchParams object.
+ * Converts camelCase backend params back to snake_case for frontend state.
+ */
+export function parseFilterParams(searchParams: URLSearchParams): StatsFilters {
+  const filters: StatsFilters = {}
+  for (const [paramName, filterKey] of Object.entries(PARAM_TO_FILTER_KEY)) {
+    const val = searchParams.get(paramName)
+    if (val !== null) {
+      const num = Number(val)
+      if (!Number.isNaN(num)) {
+        ;(filters as Record<string, number>)[filterKey] = num
+      }
+    }
+  }
+  return filters
 }
 
 /**

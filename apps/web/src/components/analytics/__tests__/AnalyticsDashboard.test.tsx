@@ -145,7 +145,7 @@ describe("AnalyticsDashboard", () => {
 
     it("reads initial filters from URL search params", () => {
       navMock.__setSearchParams(
-        new URLSearchParams("bedrooms_min=3&distance_max=10")
+        new URLSearchParams("bedroomsMin=3&distanceMax=10")
       );
 
       render(<AnalyticsDashboard />);
@@ -261,13 +261,13 @@ describe("AnalyticsDashboard", () => {
 
       expect(navMock.__routerReplace).toHaveBeenCalledTimes(1);
       expect(navMock.__routerReplace).toHaveBeenCalledWith(
-        expect.stringContaining("bedrooms_min=4"),
+        expect.stringContaining("bedroomsMin=4"),
         { scroll: false }
       );
     });
 
     it("clears URL params when all filters are reset", () => {
-      navMock.__setSearchParams(new URLSearchParams("bedrooms_min=3"));
+      navMock.__setSearchParams(new URLSearchParams("bedroomsMin=3"));
       render(<AnalyticsDashboard />);
 
       fireEvent.click(screen.getByText("Clear all"));
@@ -297,7 +297,7 @@ describe("AnalyticsDashboard", () => {
 
       expect(navMock.__routerReplace).toHaveBeenCalledTimes(1);
       expect(navMock.__routerReplace).toHaveBeenCalledWith(
-        expect.stringContaining("bedrooms_min=3"),
+        expect.stringContaining("bedroomsMin=3"),
         { scroll: false }
       );
     });

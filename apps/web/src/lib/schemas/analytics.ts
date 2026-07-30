@@ -45,7 +45,7 @@ export const KpiSummarySchema = z.object({
   max_price: z.number(),
   std_dev_price: z.number(),
   avg_square_footage: z.number(),
-  avg_price_per_sqft: z.number(),
+  avg_price_per_sq_ft: z.number(),
 });
 
 export type KpiSummary = z.infer<typeof KpiSummarySchema>;

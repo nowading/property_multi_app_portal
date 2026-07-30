@@ -130,7 +130,7 @@ export function generateMarketStats(
     max_price: Math.round(maxPrice),
     std_dev_price: Math.round(stdDev),
     avg_square_footage: Math.round(avgSqft),
-    avg_price_per_sqft: Math.round(avgPricePerSqft),
+    avg_price_per_sq_ft: Math.round(avgPricePerSqft),
   };
 
   // -----------------------------------------------------------------------
