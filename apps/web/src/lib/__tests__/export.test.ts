@@ -5,6 +5,7 @@ import {
   exportDatasetCsv,
   exportFullReport,
   exportMarketStatsCsv,
+  generateReportHtml,
   marketStatsToCsv,
   propertyRowsToCsv,
 } from "@/lib/export";
@@ -56,7 +57,7 @@ const SAMPLE_STATS: MarketStats = {
     max_price: 2_000_000,
     std_dev_price: 150_000,
     avg_square_footage: 2000,
-    avg_price_per_sqft: 300,
+    avg_price_per_sq_ft: 300,
   },
   price_histogram: [
     { range: "$0 – $200k", count: 50, range_start: 0, range_end: 200000 },
@@ -235,5 +236,138 @@ describe("exportFullReport", () => {
   it("includes bytes estimate when successful", () => {
     const result = exportFullReport(SAMPLE_STATS, SAMPLE_ROWS);
     expect(result.bytes).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: generateReportHtml (PDF report)
+// ---------------------------------------------------------------------------
+
+describe("generateReportHtml", () => {
+  it("does not throw and produces non-empty HTML", () => {
+    expect(() => {
+      generateReportHtml(SAMPLE_STATS);
+    }).not.toThrow();
+
+    const html = generateReportHtml(SAMPLE_STATS);
+    expect(html.length).toBeGreaterThan(0);
+    expect(html).toContain("<!DOCTYPE html>");
+  });
+
+  it("formats prices as currency (regression: formatPrice is not defined)", () => {
+    const html = generateReportHtml(SAMPLE_STATS);
+
+    // avg_price = 600000 → "$600,000"
+    expect(html).toContain("$600,000");
+    // median_price = 550000 → "$550,000"
+    expect(html).toContain("$550,000");
+    // avg_price_per_sq_ft = 300 → "$300/sqft"
+    expect(html).toContain("$300/sqft");
+    // min_price = 100000 → "$100,000"
+    expect(html).toContain("$100,000");
+    // max_price = 2000000 → "$2,000,000"
+    expect(html).toContain("$2,000,000");
+  });
+
+  it("formats total listings count with thousands separators", () => {
+    const html = generateReportHtml(SAMPLE_STATS);
+    // count = 500 → "500"
+    expect(html).toContain(">500<");
+  });
+
+  it("includes box plot rows with formatted Q1/Q3 prices", () => {
+    const html = generateReportHtml(SAMPLE_STATS);
+    // box_plot group 1: min=100000, q1=200000, median=300000, q3=400000, max=500000
+    expect(html).toContain("$100,000");
+    expect(html).toContain("$200,000");
+    expect(html).toContain("$300,000");
+    expect(html).toContain("$400,000");
+    expect(html).toContain("$500,000");
+  });
+
+  it("includes histogram rows", () => {
+    const html = generateReportHtml(SAMPLE_STATS);
+    expect(html).toContain("$0 – $200k");
+    expect(html).toContain("Property Count");
+  });
+
+  it("includes report header and title", () => {
+    const html = generateReportHtml(SAMPLE_STATS);
+    expect(html).toContain("Property Market Analysis Report");
+    expect(html).toContain("Market Summary");
+    expect(html).toContain("Price Distribution");
+    expect(html).toContain("Price Range by Bedroom Count");
+  });
+
+  it("omits 'Filters applied' line when no filters set (empty object)", () => {
+    const html = generateReportHtml(SAMPLE_STATS);
+    expect(html).not.toContain("Filters applied");
+    expect(html).not.toContain("null");
+  });
+
+  it("omits 'Filters applied' line when backend sends null values (regression)", () => {
+    // Backend may serialize absent filters as null instead of undefined
+    const statsWithNullFilters: MarketStats = {
+      ...SAMPLE_STATS,
+      filters_applied: {
+        bedrooms_min: null as unknown as undefined,
+        bedrooms_max: null as unknown as undefined,
+        year_built_min: null as unknown as undefined,
+        year_built_max: null as unknown as undefined,
+        distance_max: null as unknown as undefined,
+        school_rating_min: null as unknown as undefined,
+      },
+    };
+    const html = generateReportHtml(statsWithNullFilters);
+    expect(html).not.toContain("Filters applied");
+    expect(html).not.toContain("null");
+  });
+
+  it("shows 'Filters applied' line only for active filters", () => {
+    const statsWithFilters: MarketStats = {
+      ...SAMPLE_STATS,
+      filters_applied: {
+        bedrooms_min: 3,
+        school_rating_min: 7,
+      },
+    };
+    const html = generateReportHtml(statsWithFilters);
+    expect(html).toContain("Filters applied");
+    expect(html).toContain("Min Bedrooms: 3");
+    expect(html).toContain("Min School Rating: 7");
+    // Should NOT include inactive filters
+    expect(html).not.toContain("Max Bedrooms");
+    expect(html).not.toContain("Max Distance");
+    expect(html).not.toContain("null");
+  });
+
+  it("includes print CSS to keep tables intact across pages", () => {
+    const html = generateReportHtml(SAMPLE_STATS);
+    // Tables must not be split across pages
+    expect(html).toContain("page-break-inside: avoid");
+    expect(html).toContain("break-inside: avoid");
+    // Print media query must exist
+    expect(html).toContain("@media print");
+  });
+
+  it("includes @page margin:0 to suppress browser URL/page-number footer", () => {
+    const html = generateReportHtml(SAMPLE_STATS);
+    // @page margin:0 removes the space where browsers print "about:blank" URL
+    expect(html).toContain("@page");
+    expect(html).toMatch(/@page\s*\{\s*margin:\s*0\s*;?\s*\}/);
+  });
+
+  it("does not render a standalone footer (regression: orphan footer on last page)", () => {
+    const html = generateReportHtml(SAMPLE_STATS);
+    // No footer div — footer was removed because it was redundant with the
+    // header (title + date) and KPI (count), and caused orphan pagination.
+    expect(html).not.toContain('class="footer"');
+    expect(html).not.toContain("properties analyzed</div>\n</body>");
+  });
+
+  it("includes property count in the report header meta line", () => {
+    const html = generateReportHtml(SAMPLE_STATS);
+    // count = 500 → "500 properties analyzed" in header meta
+    expect(html).toContain("500 properties analyzed");
   });
 });

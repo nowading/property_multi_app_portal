@@ -42,7 +42,7 @@ const SAMPLE_STATS: MarketStats = {
     max_price: 2_000_000,
     std_dev_price: 150_000,
     avg_square_footage: 2000,
-    avg_price_per_sqft: 300,
+    avg_price_per_sq_ft: 300,
   },
   price_histogram: [
     { range: "$0 – $200k", count: 50, range_start: 0, range_end: 200000 },

@@ -7,10 +7,12 @@
  * dedicated print stylesheet (no heavy PDF library dependency).
  */
 
-import type {
-  KpiSummary,
-  MarketStats,
-  PropertyRow,
+import {
+  formatNumber,
+  formatPrice,
+  type KpiSummary,
+  type MarketStats,
+  type PropertyRow,
 } from "@/lib/schemas/analytics";
 
 // ---------------------------------------------------------------------------
@@ -65,7 +67,7 @@ export function marketStatsToCsv(stats: MarketStats): string {
     ["Maximum Price", stats.kpis.max_price],
     ["Std Dev Price", stats.kpis.std_dev_price],
     ["Avg Square Footage", stats.kpis.avg_square_footage],
-    ["Avg Price per Sq Ft", stats.kpis.avg_price_per_sqft],
+    ["Avg Price per Sq Ft", stats.kpis.avg_price_per_sq_ft],
   ];
   kpiEntries.forEach(([label, value]) => {
     lines.push(`${escapeCsvField(label)},${escapeCsvField(value)}`);
@@ -144,52 +146,164 @@ export function exportMarketStatsCsv(stats: MarketStats, filename?: string): voi
 // ---------------------------------------------------------------------------
 
 /**
- * Trigger a browser print dialog for the given element.
- * The user can then "Save as PDF" from the print dialog.
+ * Generate a formatted HTML report from market statistics for PDF printing.
  *
- * A temporary stylesheet hides everything except the target element
- * so only the dashboard content appears in the output.
+ * Produces a clean, print-ready report with:
+ * - Report header (title, date, filters applied)
+ * - KPI summary table
+ * - Price distribution histogram table
+ * - Price range by bedroom count table
+ *
+ * The full property dataset is excluded (use CSV export for that).
  */
-export function printToPdf(element: HTMLElement, title?: string): void {
+export function generateReportHtml(stats: MarketStats): string {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const timeStr = now.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const filters = stats.filters_applied;
+  const activeFilters: string[] = [];
+  if (filters.bedrooms_min != null) activeFilters.push(`Min Bedrooms: ${filters.bedrooms_min}`);
+  if (filters.bedrooms_max != null) activeFilters.push(`Max Bedrooms: ${filters.bedrooms_max}`);
+  if (filters.year_built_min != null) activeFilters.push(`Min Year Built: ${filters.year_built_min}`);
+  if (filters.year_built_max != null) activeFilters.push(`Max Year Built: ${filters.year_built_max}`);
+  if (filters.distance_max != null) activeFilters.push(`Max Distance: ${filters.distance_max} mi`);
+  if (filters.school_rating_min != null) activeFilters.push(`Min School Rating: ${filters.school_rating_min}`);
+
+  const k = stats.kpis;
+
+  const histogramRows = stats.price_histogram
+    .map(
+      (bin) =>
+        `<tr><td>${bin.range}</td><td style="text-align:right">${bin.count}</td></tr>`
+    )
+    .join("");
+
+  const boxPlotRows = stats.box_plot_by_bedrooms
+    .map(
+      (g) =>
+        `<tr><td style="text-align:center">${g.bedrooms}</td><td style="text-align:right">${formatPrice(g.min)}</td><td style="text-align:right">${formatPrice(g.q1)}</td><td style="text-align:right">${formatPrice(g.median)}</td><td style="text-align:right">${formatPrice(g.q3)}</td><td style="text-align:right">${formatPrice(g.max)}</td><td style="text-align:right">${g.count}</td></tr>`
+    )
+    .join("");
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Property Market Analysis Report</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    @page { margin: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; color: #1e293b; padding: 40px; line-height: 1.6; }
+    .report-header { border-bottom: 2px solid #6366f1; padding-bottom: 16px; margin-bottom: 24px; }
+    .report-header h1 { font-size: 1.5rem; font-weight: 700; color: #0f172a; }
+    .report-header .meta { font-size: 0.875rem; color: #64748b; margin-top: 4px; }
+    .report-header .filters { font-size: 0.8rem; color: #4f46e5; margin-top: 8px; }
+    h2 { font-size: 1.125rem; font-weight: 600; color: #0f172a; margin-top: 24px; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.875rem; margin-bottom: 16px; }
+    th { background: #f1f5f9; color: #475569; font-weight: 600; text-align: left; padding: 8px 12px; border: 1px solid #e2e8f0; }
+    td { padding: 6px 12px; border: 1px solid #e2e8f0; }
+    tbody tr:nth-child(even) { background: #f8fafc; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+    .kpi-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; }
+    .kpi-card .label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+    .kpi-card .value { font-size: 1.25rem; font-weight: 700; color: #0f172a; margin-top: 4px; }
+    .kpi-card .desc { font-size: 0.75rem; color: #94a3b8; margin-top: 2px; }
+    @media print {
+      body { padding: 15mm 18mm; }
+      .kpi-grid { grid-template-columns: repeat(4, 1fr); margin-bottom: 12px; }
+      .report-header { margin-bottom: 16px; }
+      h2 { page-break-after: avoid; break-after: avoid; margin-top: 16px; margin-bottom: 8px; }
+      table { page-break-inside: avoid; break-inside: avoid; margin-bottom: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="report-header">
+    <h1>Property Market Analysis Report</h1>
+    <div class="meta">Generated: ${dateStr} at ${timeStr} · ${formatNumber(k.count)} properties analyzed</div>
+    ${activeFilters.length > 0 ? `<div class="filters">Filters applied: ${activeFilters.join(" · ")}</div>` : ""}
+  </div>
+
+  <h2>Market Summary</h2>
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="label">Total Listings</div>
+      <div class="value">${formatNumber(k.count)}</div>
+      <div class="desc">Properties in dataset</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Average Price</div>
+      <div class="value">${formatPrice(k.avg_price)}</div>
+      <div class="desc">${formatPrice(k.avg_price_per_sq_ft)}/sqft</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Median Price</div>
+      <div class="value">${formatPrice(k.median_price)}</div>
+      <div class="desc">Midpoint of all prices</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Price Range</div>
+      <div class="value" style="font-size:1rem">${formatPrice(k.min_price)} – ${formatPrice(k.max_price)}</div>
+      <div class="desc">Std dev: ${formatPrice(k.std_dev_price)}</div>
+    </div>
+  </div>
+
+  <h2>Price Distribution</h2>
+  <table>
+    <thead>
+      <tr><th>Price Range</th><th style="text-align:right">Property Count</th></tr>
+    </thead>
+    <tbody>
+      ${histogramRows}
+    </tbody>
+  </table>
+
+  <h2>Price Range by Bedroom Count</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Bedrooms</th>
+        <th style="text-align:right">Min</th>
+        <th style="text-align:right">Q1</th>
+        <th style="text-align:right">Median</th>
+        <th style="text-align:right">Q3</th>
+        <th style="text-align:right">Max</th>
+        <th style="text-align:right">Count</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${boxPlotRows}
+    </tbody>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * Open a print dialog with a formatted business report from market statistics.
+ * The user can then "Save as PDF" from the print dialog.
+ */
+export function printReport(stats: MarketStats): void {
   const printWindow = window.open("", "_blank", "width=900,height=700");
   if (!printWindow) {
-    // Fallback: use the native print dialog on current page
-    // which gives the option to save as PDF
-    const originalDisplay = element.style.display;
-    element.style.display = "block";
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    printWindow?.close(); // null check above — just in case
-    alert("Please use the browser's 'Print' dialog and choose 'Save as PDF'.");
-    document.body.style.overflow = prevOverflow;
-    element.style.display = originalDisplay;
+    alert("Please allow pop-ups to generate the PDF report.");
     return;
   }
 
+  const html = generateReportHtml(stats);
   const printDoc = printWindow.document;
-  printDoc.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>${title ?? "Property Market Analysis"}</title>
-      <style>
-        body { font-family: system-ui, -apple-system, sans-serif; padding: 20px; }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background: #f5f5f5; }
-        @media print {
-          body { padding: 0; }
-        }
-      </style>
-    </head>
-    <body>${element.outerHTML}</body>
-    </html>
-  `);
+  printDoc.write(html);
   printDoc.close();
+  printDoc.title = "Property Market Analysis Report";
   printWindow.focus();
-  // Give the browser a moment to render before triggering print
   setTimeout(() => {
     printWindow.print();
   }, 300);

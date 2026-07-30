@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { Download, FileText, Printer, Table } from "lucide-react";
 
@@ -9,7 +9,7 @@ import {
   exportDatasetCsv,
   exportFullReport,
   exportMarketStatsCsv,
-  printToPdf,
+  printReport,
   type ExportResult,
 } from "@/lib/export";
 import type { MarketStats, PropertyRow } from "@/lib/schemas/analytics";
@@ -22,7 +22,7 @@ export interface ExportPanelProps {
   /** Optional override for market stats CSV export (for testing). */
   onExportStats?: (stats: MarketStats) => void;
   /** Optional override for PDF export (for testing). */
-  onExportPdf?: (element: HTMLElement) => void;
+  onExportPdf?: (stats: MarketStats) => void;
   /** Optional override for full report export (for testing). */
   onExportAll?: (stats: MarketStats, dataset: PropertyRow[]) => ExportResult;
 }
@@ -47,7 +47,6 @@ export function ExportPanel({
   onExportPdf,
   onExportAll,
 }: ExportPanelProps) {
-  const dashboardRef = useRef<HTMLDivElement>(null);
   const [lastResult, setLastResult] = useState<ExportResult | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -96,13 +95,12 @@ export function ExportPanel({
   }, [stats, onExportStats]);
 
   const handleExportPdf = useCallback(() => {
-    if (!dashboardRef.current) return;
     try {
       setIsExporting(true);
       if (onExportPdf) {
-        onExportPdf(dashboardRef.current);
+        onExportPdf(stats);
       } else {
-        printToPdf(dashboardRef.current, "Property Market Analysis Report");
+        printReport(stats);
       }
       setLastResult({
         success: true,
@@ -116,7 +114,7 @@ export function ExportPanel({
     } finally {
       setIsExporting(false);
     }
-  }, [onExportPdf]);
+  }, [stats, onExportPdf]);
 
   const handleExportAll = useCallback(() => {
     try {
@@ -131,8 +129,7 @@ export function ExportPanel({
   }, [stats, dataset, onExportAll]);
 
   return (
-    <div ref={dashboardRef}>
-      <Card>
+    <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -191,7 +188,6 @@ export function ExportPanel({
           </div>
         </CardContent>
       </Card>
-    </div>
   );
 }
 
