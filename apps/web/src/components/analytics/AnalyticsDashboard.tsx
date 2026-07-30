@@ -4,11 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { BedroomBoxPlot } from "./BedroomBoxPlot";
+import { DataTable } from "./DataTable";
 import { FilterPanel } from "./FilterPanel";
 import { KpiCard } from "./KpiCard";
 import { PriceHistogram } from "./PriceHistogram";
 import { PriceScatter } from "./PriceScatter";
 import { generateMarketStats } from "@/lib/mock/analytics";
+import { generatePropertyDataset } from "@/lib/mock/dataset";
 import {
   DEFAULT_FILTERS,
   formatNumber,
@@ -115,6 +117,11 @@ export function AnalyticsDashboard({
 
   const { kpis, price_histogram, price_vs_sqft, box_plot_by_bedrooms } = stats;
 
+  const dataset = useMemo(
+    () => generatePropertyDataset(MOCK_SEED, filters),
+    [filters]
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <FilterPanel filters={filters} onChange={setFilters} onReset={handleReset} />
@@ -160,6 +167,11 @@ export function AnalyticsDashboard({
       {/* Charts row 2: box plot */}
       <section aria-label="Price range by bedroom count">
         <BedroomBoxPlot data={box_plot_by_bedrooms} />
+      </section>
+
+      {/* Data table */}
+      <section aria-label="Property dataset table">
+        <DataTable data={dataset} />
       </section>
     </div>
   );
