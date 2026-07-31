@@ -1,23 +1,42 @@
 /**
- * Public API base URLs for client-side components.
+ * API base URLs for both server-side (RSC) and client-side components.
  *
- * Next.js requires the `NEXT_PUBLIC_` prefix to expose env vars to the
- * browser bundle. Server components can read the non-prefixed variants
- * directly from `process.env` when needed.
+ * - Server-side (RSC): prefers non-public env var (e.g. Docker network URL
+ *   like `http://estimator-api:8001`), falls back to NEXT_PUBLIC_ then default.
+ * - Client-side: uses NEXT_PUBLIC_ env var (inlined at build time), falls
+ *   back to default. Browser cannot resolve Docker internal hostnames.
  *
  * Mirrors `.env.example` § Web section.
  */
-export const ESTIMATOR_API_URL =
-  process.env.NEXT_PUBLIC_ESTIMATOR_API_URL || "http://localhost:8001";
 
-export const ANALYTICS_API_URL =
-  process.env.NEXT_PUBLIC_ANALYTICS_API_URL || "http://localhost:8002"
+function resolveApiUrl(
+  serverKey: string,
+  publicKey: string,
+  defaultValue: string
+): string {
+  if (typeof window === "undefined" && process.env[serverKey]) {
+    return process.env[serverKey] as string;
+  }
+  return process.env[publicKey] || defaultValue;
+}
+
+export const ESTIMATOR_API_URL = resolveApiUrl(
+  "ESTIMATOR_API_URL",
+  "NEXT_PUBLIC_ESTIMATOR_API_URL",
+  "http://localhost:8001"
+);
+
+export const ANALYTICS_API_URL = resolveApiUrl(
+  "ANALYTICS_API_URL",
+  "NEXT_PUBLIC_ANALYTICS_API_URL",
+  "http://localhost:8002"
+);
 
 export const ANALYTICS_API_PATHS = {
   STATS: "/api/stats",
   DATASET: "/api/dataset",
   WHAT_IF: "/api/what-if",
-  MODEL_INFO: "/api/model-info",
+  MODEL_INFO: "/api/model/info",
 } as const
 
 export const ESTIMATOR_API_PATHS = {

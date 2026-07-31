@@ -82,12 +82,16 @@ services:
     build:
       context: ./apps/web
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_ESTIMATOR_API_URL: "http://localhost:8001"
+        NEXT_PUBLIC_ANALYTICS_API_URL: "http://localhost:8002"
+        # Server-side URLs for next.config.ts rewrites() — Docker network hostnames
+        ESTIMATOR_API_URL: "http://estimator-api:8001"
+        ANALYTICS_API_URL: "http://analytics-api:8002"
     container_name: web-portal
     ports:
       - "${WEB_PORT:-3000}:3000"
     environment:
-      NEXT_PUBLIC_ESTIMATOR_API_URL: "http://estimator-api:8001"
-      NEXT_PUBLIC_ANALYTICS_API_URL: "http://analytics-api:8002"
       ESTIMATOR_API_URL: "http://estimator-api:8001"
       ANALYTICS_API_URL: "http://analytics-api:8002"
     depends_on:
@@ -100,7 +104,7 @@ services:
         - CMD
         - wget
         - -qO-
-        - http://localhost:3000/
+        - http://127.0.0.1:3000/
       interval: 30s
       timeout: 5s
       retries: 3

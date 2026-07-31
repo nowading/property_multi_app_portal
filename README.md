@@ -76,7 +76,7 @@ property_multi_app_portal/
 
 | 工具 | 版本要求 |
 |------|----------|
-| Node.js | 22+ |
+| Node.js | **22 LTS**（不可用 v25+，Next.js 16 native bindings 与 ABI 141 不兼容） |
 | Python | 3.12+ |
 | JDK | 21 |
 | Maven | 3.9+（Spring Boot 内置 `mvnw` 可替代） |
@@ -84,6 +84,12 @@ property_multi_app_portal/
 | Docker Compose | 2+ |
 
 > **注意**：ML 容器依赖外部仓库 `house_price_prediction`，需与本项目同级目录。
+>
+> **Node 版本切换**（Windows PowerShell）：
+> ```powershell
+> $env:PATH = "D:\DevEnv\node-v22.23.2-win-x64;" + $env:PATH
+> node --version  # 应输出 v22.x.x
+> ```
 
 ### 步骤一：启动 ML 容器
 
@@ -121,22 +127,125 @@ npm run dev
 
 访问 [http://localhost:3000](http://localhost:3000) 打开门户页面。
 
-## Docker Compose 部署
+## Docker Compose 部署（推荐）
 
-一键编排全部 4 个服务，包含健康检查与依赖等待：
+一键编排全部 4 个服务（ml-container → estimator-api / analytics-api → web），包含健康检查与依赖等待。
+
+### 首次启动（构建镜像 + 启动）
 
 ```bash
-# 构建并启动所有服务
+# 构建所有镜像并后台启动（ml-container 首次构建需训练模型，约 1-2 分钟）
 docker compose up -d --build
+```
 
-# 查看服务状态
+### 日常操作
+
+```bash
+# 用已有镜像启动（不重新构建）
+docker compose up -d --no-build
+
+# 查看服务状态（等待所有容器变为 healthy）
 docker compose ps
 
-# 查看日志
+# 查看所有服务实时日志
 docker compose logs -f
 
-# 停止并移除容器
+# 查看单个服务日志
+docker compose logs -f web
+docker compose logs -f estimator-api
+docker compose logs -f analytics-api
+docker compose logs -f ml-container
+
+# 停止并移除容器（保留镜像）
 docker compose down
+
+# 停止并移除容器 + 删除镜像（完全清理）
+docker compose down --rmi all
+```
+
+### 重建单个服务
+
+当某个服务的代码或 Dockerfile 变更后，只需重建该服务：
+
+```bash
+# 重建 web 前端（例如修改了 Next.js 代码或 build args）
+docker compose up -d --build web
+
+# 重建 estimator-api（例如修改了 FastAPI 代码）
+docker compose up -d --build estimator-api
+
+# 重建 analytics-api（例如修改了 Spring Boot 代码）
+docker compose up -d --build analytics-api
+
+# 重建 ml-container（例如修改了 ML 模型代码）
+docker compose up -d --build ml-container
+```
+
+### 容器内调试
+
+```bash
+# 进入容器 shell
+docker compose exec web sh
+docker compose exec estimator-api bash
+docker compose exec analytics-api sh
+
+# 测试容器间网络连通性（Docker 内部网络）
+docker compose exec web wget -qO- http://estimator-api:8001/healthz
+docker compose exec web wget -qO- http://analytics-api:8002/actuator/health
+docker compose exec estimator-api curl -s http://ml-container:8000/health
+```
+
+### 启动顺序与健康检查
+
+docker-compose.yml 定义了依赖链与健康检查门槛：
+
+```
+ml-container (healthy) ──► estimator-api (healthy) ──► web
+                      └──► analytics-api (healthy) ──┘
+```
+
+- `ml-container` 启动后需通过 `/health` 检查（start_period: 60s）
+- `estimator-api` / `analytics-api` 等待 ML 容器 healthy 后才启动
+- `web` 等待两个后端 healthy 后才启动
+
+### 验证服务可用性
+
+启动后执行以下命令一键验证所有端点：
+
+```powershell
+# ML 容器健康
+curl http://localhost:8000/health
+# 期望: {"status":"healthy","model_loaded":true}
+
+# Estimator API 健康（含 ML 下游状态）
+curl http://localhost:8001/healthz
+# 期望: {"success":true,"data":{"status":"healthy","ml_healthy":true,...}}
+
+# Analytics API 健康（Spring Actuator）
+curl http://localhost:8002/actuator/health
+# 期望: {"status":"UP","components":{"mlService":{"status":"UP"},...}}
+
+# Web Portal 首页
+curl -o /dev/null -s -w "%{http_code}" http://localhost:3000/
+# 期望: 200
+
+# Web 代理 → Estimator API
+curl http://localhost:3000/api/estimator/healthz
+# 期望: {"success":true,"data":{"status":"healthy",...}}
+
+# Web 代理 → Analytics API
+curl http://localhost:3000/api/analytics/actuator/health
+# 期望: {"status":"UP",...}
+
+# 端到端预测（Estimator → ML）
+curl -X POST http://localhost:8001/predict `
+  -H "Content-Type: application/json" `
+  -d '{"features":{"square_footage":2000,"bedrooms":3,"bathrooms":2,"year_built":2010,"lot_size":5000,"distance_to_city_center":10,"school_rating":8}}'
+# 期望: {"success":true,"data":{"predicted_price":258775.97,...}}
+
+# 聚合市场统计（Analytics 内部数据集）
+curl http://localhost:8002/api/stats
+# 期望: {"success":true,"data":{"kpis":{"count":50,"avg_price":304760.0,...}}}
 ```
 
 ## 环境变量表

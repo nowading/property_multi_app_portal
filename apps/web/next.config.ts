@@ -1,15 +1,20 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   async rewrites() {
+    const estimatorUrl =
+      process.env.ESTIMATOR_API_URL || "http://localhost:8001";
+    const analyticsUrl =
+      process.env.ANALYTICS_API_URL || "http://localhost:8002";
     return [
       {
         source: "/api/estimator/:path*",
-        destination: "http://estimator-api:8001/:path*",
+        destination: `${estimatorUrl}/:path*`,
       },
       {
         source: "/api/analytics/:path*",
-        destination: "http://analytics-api:8002/:path*",
+        destination: `${analyticsUrl}/:path*`,
       },
     ];
   },
