@@ -33,12 +33,12 @@ Property Multi-App Portal 是一个统一的 Next.js 多应用门户，集成了
 
 ## 技术栈
 
-| 服务 | 技术 |
-|------|------|
-| **Web Portal** | Next.js 16 (App Router) · TypeScript 5 · Tailwind CSS 4 · React 19 · Lucide · Recharts · Jest + RTL |
-| **Estimator API** | Python 3.12+ · FastAPI · Pydantic v2 · httpx (async) · pytest + pytest-asyncio |
-| **Analytics API** | Java 21 · Spring Boot 3.4.4 · Caffeine · Resilience4j · JUnit 5 + MockMvc |
-| **ML Container** | FastAPI · scikit-learn · 线性回归模型 |
+| 服务                | 技术                                                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------------- |
+| **Web Portal**    | Next.js 16 (App Router) · TypeScript 5 · Tailwind CSS 4 · React 19 · Lucide · Recharts · Jest + RTL |
+| **Estimator API** | Python 3.12+ · FastAPI · Pydantic v2 · httpx (async) · pytest + pytest-asyncio                      |
+| **Analytics API** | Java 21 · Spring Boot 3.4.4 · Caffeine · Resilience4j · JUnit 5 + MockMvc                           |
+| **ML Container**  | FastAPI · scikit-learn · 线性回归模型                                                                     |
 
 ## 目录结构
 
@@ -74,18 +74,19 @@ property_multi_app_portal/
 
 ### 前置依赖
 
-| 工具 | 版本要求 |
-|------|----------|
-| Node.js | **22 LTS**（不可用 v25+，Next.js 16 native bindings 与 ABI 141 不兼容） |
-| Python | 3.12+ |
-| JDK | 21 |
-| Maven | 3.9+（Spring Boot 内置 `mvnw` 可替代） |
-| Docker | 27+ |
-| Docker Compose | 2+ |
+| 工具             | 版本要求                                                          |
+| -------------- | ------------------------------------------------------------- |
+| Node.js        | **22 LTS**（不可用 v25+，Next.js 16 native bindings 与 ABI 141 不兼容） |
+| Python         | 3.12+                                                         |
+| JDK            | 21                                                            |
+| Maven          | 3.9+（Spring Boot 内置 `mvnw` 可替代）                               |
+| Docker         | 27+                                                           |
+| Docker Compose | 2+                                                            |
 
 > **注意**：ML 容器依赖外部仓库 `house_price_prediction`，需与本项目同级目录。
 >
 > **Node 版本切换**（Windows PowerShell）：
+>
 > ```powershell
 > $env:PATH = "D:\DevEnv\node-v22.23.2-win-x64;" + $env:PATH
 > node --version  # 应输出 v22.x.x
@@ -125,7 +126,7 @@ npm install
 npm run dev
 ```
 
-访问 [http://localhost:3000](http://localhost:3000) 打开门户页面。
+访问 <http://localhost:3000> 打开门户页面。
 
 ## Docker Compose 部署（推荐）
 
@@ -204,7 +205,7 @@ ml-container (healthy) ──► estimator-api (healthy) ──► web
                       └──► analytics-api (healthy) ──┘
 ```
 
-- `ml-container` 启动后需通过 `/health` 检查（start_period: 60s）
+- `ml-container` 启动后需通过 `/health` 检查（start\_period: 60s）
 - `estimator-api` / `analytics-api` 等待 ML 容器 healthy 后才启动
 - `web` 等待两个后端 healthy 后才启动
 
@@ -252,70 +253,70 @@ curl http://localhost:8002/api/stats
 
 将 `.env.example` 复制为 `.env` 并根据环境调整：
 
-| 变量 | 服务 | 用途 | 默认值 |
-|------|------|------|--------|
-| `NEXT_PUBLIC_ESTIMATOR_API_URL` | Web Portal | 客户端访问 Estimator API 地址 | `http://localhost:8001` |
-| `NEXT_PUBLIC_ANALYTICS_API_URL` | Web Portal | 客户端访问 Analytics API 地址 | `http://localhost:8002` |
-| `ESTIMATOR_API_URL` | Web Portal | 服务端访问 Estimator API 地址 | `http://localhost:8001` |
-| `ANALYTICS_API_URL` | Web Portal | 服务端访问 Analytics API 地址 | `http://localhost:8002` |
-| `ML_SERVICE_URL` | Estimator API | ML 容器地址 | `http://localhost:8000` |
-| `ESTIMATOR_API_HOST` | Estimator API | 监听地址 | `0.0.0.0` |
-| `ESTIMATOR_API_PORT` | Estimator API | 监听端口 | `8001` |
-| `LOG_LEVEL` | Estimator / Analytics | 日志级别（DEBUG/INFO/WARNING/ERROR） | `INFO` |
-| `ML_SERVICE_URL` | Analytics API | ML 容器地址（Spring Boot） | `http://localhost:8000` |
-| `SERVER_PORT` | Analytics API | 服务端口 | `8002` |
-| `JAVA_OPTS` | Analytics API | JVM 参数 | `-Xms256m -Xmx512m` |
-| `ML_CONTAINER_PORT` | ML Container | ML 容器端口 | `8000` |
-| `WEB_PORT` | Web Portal | 门户端口 | `3000` |
-| `ESTIMATOR_API_PORT` | Estimator API | API 端口（Docker 映射） | `8001` |
-| `ANALYTICS_API_PORT` | Analytics API | API 端口（Docker 映射） | `8002` |
+| 变量                              | 服务                    | 用途                             | 默认值                     |
+| ------------------------------- | --------------------- | ------------------------------ | ----------------------- |
+| `NEXT_PUBLIC_ESTIMATOR_API_URL` | Web Portal            | 客户端访问 Estimator API 地址         | `http://localhost:8001` |
+| `NEXT_PUBLIC_ANALYTICS_API_URL` | Web Portal            | 客户端访问 Analytics API 地址         | `http://localhost:8002` |
+| `ESTIMATOR_API_URL`             | Web Portal            | 服务端访问 Estimator API 地址         | `http://localhost:8001` |
+| `ANALYTICS_API_URL`             | Web Portal            | 服务端访问 Analytics API 地址         | `http://localhost:8002` |
+| `ML_SERVICE_URL`                | Estimator API         | ML 容器地址                        | `http://localhost:8000` |
+| `ESTIMATOR_API_HOST`            | Estimator API         | 监听地址                           | `0.0.0.0`               |
+| `ESTIMATOR_API_PORT`            | Estimator API         | 监听端口                           | `8001`                  |
+| `LOG_LEVEL`                     | Estimator / Analytics | 日志级别（DEBUG/INFO/WARNING/ERROR） | `INFO`                  |
+| `ML_SERVICE_URL`                | Analytics API         | ML 容器地址（Spring Boot）           | `http://localhost:8000` |
+| `SERVER_PORT`                   | Analytics API         | 服务端口                           | `8002`                  |
+| `JAVA_OPTS`                     | Analytics API         | JVM 参数                         | `-Xms256m -Xmx512m`     |
+| `ML_CONTAINER_PORT`             | ML Container          | ML 容器端口                        | `8000`                  |
+| `WEB_PORT`                      | Web Portal            | 门户端口                           | `3000`                  |
+| `ESTIMATOR_API_PORT`            | Estimator API         | API 端口（Docker 映射）              | `8001`                  |
+| `ANALYTICS_API_PORT`            | Analytics API         | API 端口（Docker 映射）              | `8002`                  |
 
 ## 端口映射表
 
-| 端口 | 服务 | 说明 |
-|------|------|------|
-| `3000` | Next.js Web Portal | 统一前端门户 |
-| `8001` | FastAPI Estimator API | 房产估价器后端 |
-| `8002` | Spring Boot Analytics API | 房产市场分析后端 |
-| `8000` | ML Container | 房屋价格回归模型服务 |
+| 端口     | 服务                        | 说明         |
+| ------ | ------------------------- | ---------- |
+| `3000` | Next.js Web Portal        | 统一前端门户     |
+| `8001` | FastAPI Estimator API     | 房产估价器后端    |
+| `8002` | Spring Boot Analytics API | 房产市场分析后端   |
+| `8000` | ML Container              | 房屋价格回归模型服务 |
 
 ## API 端点列表
 
 ### Estimator API（FastAPI，端口 8001）
 
-| 方法 | 端点 | 说明 | 缓存 |
-|------|------|------|------|
-| `GET` | `/healthz` | 健康检查（含 ML 下游状态） | — |
-| `POST` | `/predict` | 单条房产价格预测 | `no-store` |
-| `POST` | `/predict/batch` | 批量房产价格预测 | `no-store` |
-| `GET` | `/model-info` | 获取 ML 模型元数据 | `max-age=60, stale-while-revalidate=300` |
-| `GET` | `/history` | 获取预测历史列表 | `no-store` |
-| `GET` | `/history/{entry_id}` | 获取单条历史记录 | `no-store` |
-| `DELETE` | `/history/{entry_id}` | 删除单条历史记录 | `no-store` |
-| `DELETE` | `/history` | 清空所有历史记录 | `no-store` |
+| 方法       | 端点                    | 说明              | 缓存                                       |
+| -------- | --------------------- | --------------- | ---------------------------------------- |
+| `GET`    | `/healthz`            | 健康检查（含 ML 下游状态） | —                                        |
+| `POST`   | `/predict`            | 单条房产价格预测        | `no-store`                               |
+| `POST`   | `/predict/batch`      | 批量房产价格预测        | `no-store`                               |
+| `GET`    | `/model-info`         | 获取 ML 模型元数据     | `max-age=60, stale-while-revalidate=300` |
+| `GET`    | `/history`            | 获取预测历史列表        | `no-store`                               |
+| `GET`    | `/history/{entry_id}` | 获取单条历史记录        | `no-store`                               |
+| `DELETE` | `/history/{entry_id}` | 删除单条历史记录        | `no-store`                               |
+| `DELETE` | `/history`            | 清空所有历史记录        | `no-store`                               |
 
 ### Analytics API（Spring Boot，端口 8002）
 
-| 方法 | 端点 | 说明 | 缓存 |
-|------|------|------|------|
-| `GET` | `/actuator/health` | Spring Actuator 健康检查 | — |
-| `GET` | `/api/stats` | 聚合市场统计（支持筛选参数） | Caffeine · 10min TTL |
-| `POST` | `/api/stats` | 聚合市场统计（JSON Body 筛选） | Caffeine · 10min TTL |
-| `GET` | `/api/dataset` | 分页数据集查询（`page`, `page_size`） | — |
-| `GET` | `/api/model/info` | ML 模型元数据 | Caffeine · 60s TTL |
-| `DELETE` | `/api/model/cache` | 清除模型信息缓存 | — |
-| `POST` | `/api/what-if` | 假设分析（自定义基准） | Caffeine · 60s TTL |
-| `POST` | `/api/what-if/analyze-default` | 假设分析（默认基准） | Caffeine · 60s TTL |
-| `GET` | `/api/export/stats/csv` | 市场统计 CSV 导出 | — |
+| 方法       | 端点                             | 说明                           | 缓存                   |
+| -------- | ------------------------------ | ---------------------------- | -------------------- |
+| `GET`    | `/actuator/health`             | Spring Actuator 健康检查         | —                    |
+| `GET`    | `/api/stats`                   | 聚合市场统计（支持筛选参数）               | Caffeine · 10min TTL |
+| `POST`   | `/api/stats`                   | 聚合市场统计（JSON Body 筛选）         | Caffeine · 10min TTL |
+| `GET`    | `/api/dataset`                 | 分页数据集查询（`page`, `page_size`） | —                    |
+| `GET`    | `/api/model/info`              | ML 模型元数据                     | Caffeine · 60s TTL   |
+| `DELETE` | `/api/model/cache`             | 清除模型信息缓存                     | —                    |
+| `POST`   | `/api/what-if`                 | 假设分析（自定义基准）                  | Caffeine · 60s TTL   |
+| `POST`   | `/api/what-if/analyze-default` | 假设分析（默认基准）                   | Caffeine · 60s TTL   |
+| `GET`    | `/api/export/stats/csv`        | 市场统计 CSV 导出                  | —                    |
 
 ### ML Container（端口 8000）
 
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| `GET` | `/health` | ML 容器健康检查 |
-| `POST` | `/predict` | 单条预测 |
-| `POST` | `/predict/batch` | 批量预测 |
-| `GET` | `/model-info` | 模型元数据 |
+| 方法     | 端点               | 说明        |
+| ------ | ---------------- | --------- |
+| `GET`  | `/health`        | ML 容器健康检查 |
+| `POST` | `/predict`       | 单条预测      |
+| `POST` | `/predict/batch` | 批量预测      |
+| `GET`  | `/model-info`    | 模型元数据     |
 
 ## 烟雾测试
 
@@ -356,52 +357,59 @@ docker compose up -d --build
 ### 演示步骤
 
 **Step 1：访问门户首页**
-- 打开 [http://localhost:3000](http://localhost:3000)
+
+- 打开 <http://localhost:3000>
 - 查看门户概览与服务状态卡片
 
 **Step 2：房产估价器 — 单条预测**
+
 - 导航至 `/estimator`
 - 填写 7 个特征字段（建筑面积、卧室、浴室、建造年份、地块大小、距市中心距离、学区评分）
 - 提交并查看预测价格与特征贡献图表
 
 **Step 3：房产估价器 — 历史与对比**
+
 - 导航至 `/estimator/history` 查看历史记录
 - 导航至 `/estimator/compare` 选择 2–4 条记录进行对比
 
 **Step 4：市场分析仪表盘**
+
 - 导航至 `/analytics`
 - 查看 KPI 卡片（均价、中位数、最高/最低价）
 - 与筛选器交互（卧室数、建造年份、距离、学区评分）
 - 查看价格直方图、散点图与箱线图
 
 **Step 5：假设分析**
+
 - 导航至 `/analytics/what-if`
 - 拖动滑块调整特征值，实时查看预测价格变化
 
 **Step 6：数据导出**
+
 - 在仪表盘使用「导出」功能，下载 CSV 格式的市场统计报告
 
 **Step 7：运行烟雾测试**
+
 ```powershell
 .\scripts\smoke.ps1
 ```
 
 ## 故障排除
 
-| 问题 | 解决方案 |
-|------|----------|
+| 问题                              | 解决方案                                                                                                                                   |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | ML 容器连接超时（`ML_SERVICE_TIMEOUT`） | 确认 `house_price_prediction` 容器已启动且端口 8000 可达。Docker 环境下检查网络连接：`docker compose exec estimator-api curl http://ml-container:8000/health` |
-| Estimator API 返回 `degraded` 状态 | 表示 API 自身正常但 ML 下游不可用，检查 ML 容器健康情况 |
-| Spring Boot 启动失败（端口冲突） | 修改 `.env` 中 `ANALYTICS_API_PORT` 或 `SERVER_PORT`，确保端口 8002 未被占用 |
-| Next.js 页面空白或 API 调用失败 | 确认 `.env` 中 `NEXT_PUBLIC_*` 变量指向正确端口。开发模式默认 `localhost`，Docker 模式使用容器名 |
-| Maven 依赖下载失败 | 检查网络连接，必要时在 `mvnw` 中配置代理或使用本地 Maven 仓库缓存 |
-| Docker Compose 健康检查失败 | 首次启动 ML 容器需要较长加载时间，`docker-compose.yml` 已配置 60s `start_period`。可手动检查：`docker compose logs ml-container` |
-| `house_price_prediction` 目录不存在 | ML 容器需从同级目录 `../house_price_prediction` 构建，确保该仓库已克隆 |
-| Python 版本不兼容 | Estimator API 要求 Python ≥ 3.12，可通过 `python --version` 验证 |
-| JDK 版本不兼容 | Analytics API 要求 JDK 21，可通过 `java -version` 验证 |
-| Docker Desktop 内存不足 | Spring Boot + JVM 至少需要 1GB，建议分配 2GB+ 内存给 Docker |
+| Estimator API 返回 `degraded` 状态  | 表示 API 自身正常但 ML 下游不可用，检查 ML 容器健康情况                                                                                                     |
+| Spring Boot 启动失败（端口冲突）          | 修改 `.env` 中 `ANALYTICS_API_PORT` 或 `SERVER_PORT`，确保端口 8002 未被占用                                                                        |
+| Next.js 页面空白或 API 调用失败          | 确认 `.env` 中 `NEXT_PUBLIC_*` 变量指向正确端口。开发模式默认 `localhost`，Docker 模式使用容器名                                                                 |
+| Maven 依赖下载失败                    | 检查网络连接，必要时在 `mvnw` 中配置代理或使用本地 Maven 仓库缓存                                                                                               |
+| Docker Compose 健康检查失败           | 首次启动 ML 容器需要较长加载时间，`docker-compose.yml` 已配置 60s `start_period`。可手动检查：`docker compose logs ml-container`                                |
+| `house_price_prediction` 目录不存在  | ML 容器需从同级目录 `../house_price_prediction` 构建，确保该仓库已克隆                                                                                    |
+| Python 版本不兼容                    | Estimator API 要求 Python ≥ 3.12，可通过 `python --version` 验证                                                                               |
+| JDK 版本不兼容                       | Analytics API 要求 JDK 21，可通过 `java -version` 验证                                                                                         |
+| Docker Desktop 内存不足             | Spring Boot + JVM 至少需要 1GB，建议分配 2GB+ 内存给 Docker                                                                                        |
 
----
+***
 
 ## License
 
