@@ -26,14 +26,14 @@ public class MlServiceHealthIndicator implements HealthIndicator {
 
         if (healthy) {
             return Health.up()
-                    .withDetail("status", "ML service is healthy")
+                    .withDetail("status", "ML service is healthy (dev mode)")
                     .withDetail("endpoint", "/health")
                     .build();
         } else {
             return Health.down()
                     .withDetail("status", "ML service is unreachable")
                     .withDetail("endpoint", "/health")
-                    .withDetail("fallback", "Linear fallback prediction is active")
+                    .withDetail("action", "Prediction requests will fail with error until ML service recovers")
                     .build();
         }
     }

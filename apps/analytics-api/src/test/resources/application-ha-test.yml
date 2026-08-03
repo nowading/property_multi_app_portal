@@ -1,0 +1,40 @@
+server:
+  port: 8002
+
+# HA-test profile: verifies that the MysqlDatasourceConfig wires correctly
+# without requiring a real MySQL server. We use HikariCP in "no-connect"
+# mode by default (lazy-init), so just defining the bean is sufficient.
+portal:
+  datasource:
+    enabled: true
+    primary:
+      host: localhost
+      port: 3306
+      database: analytics_db
+      username: analytics
+      password: ${DB_PASSWORD}
+    ha:
+      enabled: false
+      strategy: SINGLE
+      replicas: []
+    hikari:
+      maximum-pool-size: 8
+      minimum-idle: 4
+      connection-timeout: 15000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+
+spring:
+  sql:
+    init:
+      mode: never
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+spring.cache:
+  type: caffeine

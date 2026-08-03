@@ -61,8 +61,16 @@ services:
       SERVER_PORT: "8002"
       LOG_LEVEL: "${LOG_LEVEL:-INFO}"
       JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+      # MySQL Database Configuration
+      DB_HOST: "mysql"
+      DB_PORT: "3306"
+      DB_NAME: "analytics_db"
+      DB_USERNAME: "${DB_USERNAME:-analytics}"
+      DB_PASSWORD: "${DB_PASSWORD}"
     depends_on:
       ml-container:
+        condition: service_healthy
+      mysql:
         condition: service_healthy
     healthcheck:
       test:
@@ -75,6 +83,29 @@ services:
       retries: 3
       start_period: 20s
     restart: unless-stopped
+    networks:
+      - app-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: analytics-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD}"
+      MYSQL_DATABASE: analytics_db
+      MYSQL_USER: "${DB_USERNAME:-analytics}"
+      MYSQL_PASSWORD: "${DB_PASSWORD}"
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./apps/analytics-api/src/main/resources/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD} --silent || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - app-network
 
@@ -112,6 +143,11 @@ services:
     restart: unless-stopped
     networks:
       - app-network
+
+volumes:
+  mysql-data:
+  # Maven local repository cache for analytics-api development (hot-reload mode)
+  analytics-maven-cache:
 
 networks:
   app-network:

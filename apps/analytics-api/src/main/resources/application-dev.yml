@@ -1,0 +1,102 @@
+# =============================================================================
+# Development Profile Configuration
+# =============================================================================
+# This profile is activated when running with -Dspring-boot.run.profiles=dev
+# It configures the application for local development with hot-reload support.
+# Key differences from production:
+# - Enables SQL logging for debugging
+# - DevTools auto-restart enabled for hot-reload
+# - More verbose logging levels
+# =============================================================================
+
+server:
+  port: 8002
+
+spring:
+  application:
+    name: analytics-api
+  # MySQL database (same as production, but with connection settings optimized for dev)
+  datasource:
+    url: jdbc:mysql://${DB_HOST:mysql}:${DB_PORT:3306}/${DB_NAME:analytics_db}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:analytics}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: AnalyticsHikariPool
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  # DevTools auto-restart configuration for Docker compatibility
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
+
+# ML Service Configuration — use local Docker network
+ml:
+  service:
+    url: ${ML_SERVICE_URL:http://ml-container:8000}
+
+# Actuator — more verbose in dev
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env,beans,mappings
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+      probes:
+        enabled: true
+  health:
+    defaults:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# Logging — DEBUG level for development
+logging:
+  level:
+    root: INFO
+    com.portal.analytics: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.web: DEBUG
+    org.springframework.boot: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Cache Configuration
+spring.cache:
+  type: caffeine
+
+# CORS — allow all origins in development
+analytics:
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://127.0.0.1:3000
+      - http://localhost:8001
+      - http://localhost:8002
+
+# Jackson Configuration
+spring.jackson:
+  date-format: yyyy-MM-dd'T'HH:mm:ss'Z'
+  time-zone: UTC
+  serialization:
+    write-dates-as-timestamps: false

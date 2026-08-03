@@ -8,6 +8,7 @@ import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -16,6 +17,7 @@ import static org.mockito.Mockito.when;
  * Integration tests for {@link MlServiceHealthIndicator}.
  */
 @SpringBootTest
+@ActiveProfiles("test")
 @DisplayName("MlServiceHealthIndicator")
 class MlServiceHealthIndicatorTest {
 
@@ -45,6 +47,6 @@ class MlServiceHealthIndicatorTest {
 
         assertThat(health.getStatus()).isEqualTo(org.springframework.boot.actuate.health.Status.DOWN);
         assertThat(health.getDetails()).containsEntry("status", "ML service is unreachable");
-        assertThat(health.getDetails()).containsEntry("fallback", "Linear fallback prediction is active");
+        assertThat(health.getDetails()).containsEntry("action", "Prediction requests will fail with error until ML service recovers");
     }
 }

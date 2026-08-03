@@ -1,5 +1,6 @@
 package com.portal.analytics.adapters.web;
 
+import com.portal.analytics.domain.DomainException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,15 @@ import java.util.UUID;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(DomainException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDomain(DomainException ex) {
+        String traceId = UUID.randomUUID().toString().substring(0, 8);
+        log.error("Domain error [trace={}]: {}", traceId, ex.getMessage());
+        log.debug("Domain exception stack trace for debugging: ", ex);
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(ApiResponse.error("ML_SERVICE_ERROR", ex.getMessage()));
+    }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {

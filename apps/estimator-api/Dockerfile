@@ -13,14 +13,14 @@ ARG HTTPS_PROXY=""
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+    PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
 
 WORKDIR /build
 
-# Install build dependencies required by some wheels
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc \
-    && rm -rf /var/lib/apt/lists/*
+# Note: gcc is not needed for the current Python dependencies
+# (fastapi, uvicorn, pydantic, httpx are all pure Python wheels)
 
 # Create a venv so we can copy it cleanly to the runtime stage
 RUN python -m venv /opt/venv

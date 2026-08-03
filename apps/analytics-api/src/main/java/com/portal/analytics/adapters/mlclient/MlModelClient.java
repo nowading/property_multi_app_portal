@@ -22,8 +22,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * HTTP client adapter for calling the ML model container.
  *
  * <p>Uses JDK 21's {@link HttpClient} with explicit connect/read timeouts
- * (Connect: 2s, Read: 5s). Implements a thread-safe circuit breaker with
- * fallback to gracefully degrade when the ML service is unavailable.
+ * (Connect: 2s, Read: 5s). Implements a thread-safe circuit breaker.
+ * When the ML service is unavailable, the client throws {@link DomainException}
+ * instead of returning fallback data.
  */
 @Component
 public class MlModelClient implements ModelInferencePort {
@@ -45,7 +46,7 @@ public class MlModelClient implements ModelInferencePort {
     private final AtomicReference<CircuitState> circuitState = new AtomicReference<>(CircuitState.CLOSED);
     private final AtomicReference<Instant> circuitOpenTime = new AtomicReference<>(null);
 
-    private enum CircuitState {
+    public enum CircuitState {
         CLOSED, OPEN, HALF_OPEN
     }
 
@@ -57,21 +58,22 @@ public class MlModelClient implements ModelInferencePort {
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(CONNECT_TIMEOUT)
+                .version(HttpClient.Version.HTTP_1_1)
+                .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
     }
 
     @Override
     public PredictionResult predict(PropertyFeatures features) {
-        // Check circuit breaker first
         if (!checkCircuit()) {
-            log.debug("Circuit breaker is OPEN, using fallback prediction");
-            return fallbackPrediction(features);
+            throw new DomainException("ML service circuit breaker is OPEN, predictions are temporarily unavailable");
         }
 
         String url = mlServiceUrl + "/predict";
         try {
-            Map<String, Object> payload = toPayload(features);
+            Map<String, Object> payload = Map.of("features", toPayload(features));
             String jsonBody = objectMapper.writeValueAsString(payload);
+            log.debug("Sending ML predict request to {}: {}", url, jsonBody);
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
@@ -84,22 +86,21 @@ public class MlModelClient implements ModelInferencePort {
 
             if (response.statusCode() == 200) {
                 resetCircuit();
+                log.debug("ML predict response: {}", response.body());
                 Map<String, Object> result = objectMapper.readValue(response.body(), Map.class);
-
-                @SuppressWarnings("unchecked")
-                Map<String, Object> data = (Map<String, Object>) result.get("data");
-
-                double predictedPrice = ((Number) data.get("predicted_price")).doubleValue();
+                double predictedPrice = ((Number) result.get("prediction")).doubleValue();
                 return new PredictionResult(predictedPrice, features, Instant.now());
             } else {
                 recordFailure();
-                log.warn("ML service returned status {}: {}", response.statusCode(), response.body());
-                return fallbackPrediction(features);
+                log.error("ML service returned status {}: {}", response.statusCode(), response.body());
+                throw new DomainException("ML service returned HTTP " + response.statusCode() + ": " + response.body());
             }
+        } catch (DomainException e) {
+            throw e;
         } catch (Exception e) {
             recordFailure();
-            log.warn("ML service call failed, using fallback: {}", e.getMessage());
-            return fallbackPrediction(features);
+            log.error("ML service call failed: {}", e.getMessage());
+            throw new DomainException("ML service call failed: " + e.getMessage(), e);
         }
     }
 
@@ -112,10 +113,8 @@ public class MlModelClient implements ModelInferencePort {
 
     @Override
     public ModelInfo getModelInfo() {
-        // Apply circuit breaker pattern
         if (!checkCircuit()) {
-            log.debug("Circuit breaker is OPEN, using fallback model info");
-            return getFallbackModelInfo();
+            throw new DomainException("ML service circuit breaker is OPEN, model info is temporarily unavailable");
         }
 
         String url = mlServiceUrl + "/model-info";
@@ -132,37 +131,33 @@ public class MlModelClient implements ModelInferencePort {
                 resetCircuit();
                 Map<String, Object> result = objectMapper.readValue(response.body(), Map.class);
 
+                String modelType = (String) result.getOrDefault("model_type", "unknown");
+                String trainingDate = (String) result.getOrDefault("training_date", "");
+                String description = "Model type: " + modelType + ", trained on: " + trainingDate;
+
                 @SuppressWarnings("unchecked")
-                Map<String, Object> data = (Map<String, Object>) result.get("data");
+                List<String> excludedFeatures = (List<String>) result.getOrDefault("excluded_features", List.of());
 
                 return new ModelInfo(
-                        (String) data.getOrDefault("model_name", "unknown"),
-                        (String) data.getOrDefault("model_version", "unknown"),
-                        (String) data.getOrDefault("description", ""),
-                        (List<String>) data.getOrDefault("features", List.of()),
-                        (String) data.getOrDefault("target", "price")
+                        "house-price-regression",
+                        "1.0.0",
+                        description,
+                        List.of("square_footage", "bedrooms", "bathrooms", "year_built",
+                                "lot_size", "distance_to_city_center", "school_rating"),
+                        "price"
                 );
             } else {
                 recordFailure();
-                log.warn("ML service returned status {} for model info", response.statusCode());
-                return getFallbackModelInfo();
+                log.error("ML service returned status {} for model info: {}", response.statusCode(), response.body());
+                throw new DomainException("ML service returned HTTP " + response.statusCode() + " for model info");
             }
+        } catch (DomainException e) {
+            throw e;
         } catch (Exception e) {
             recordFailure();
-            log.warn("Failed to get model info, using fallback: {}", e.getMessage());
-            return getFallbackModelInfo();
+            log.error("Failed to get model info: {}", e.getMessage());
+            throw new DomainException("Failed to get model info: " + e.getMessage(), e);
         }
-    }
-
-    private ModelInfo getFallbackModelInfo() {
-        return new ModelInfo(
-                "house-price-prediction",
-                "1.0.0",
-                "House price prediction model (fallback)",
-                List.of("square_footage", "bedrooms", "bathrooms", "year_built",
-                        "lot_size", "distance_to_city_center", "school_rating"),
-                "price"
-        );
     }
 
     private Map<String, Object> toPayload(PropertyFeatures features) {
@@ -178,24 +173,10 @@ public class MlModelClient implements ModelInferencePort {
     }
 
     /**
-     * Simple fallback prediction using a linear formula when ML service is unavailable.
-     */
-    private PredictionResult fallbackPrediction(PropertyFeatures features) {
-        double fallbackPrice = features.squareFootage() * 150
-                + features.bedrooms() * 15000
-                - features.distanceToCityCenter() * 8000
-                + features.schoolRating() * 12000
-                + features.lotSize() * 15
-                + (features.yearBuilt() - 1950) * 800;
-
-        return new PredictionResult(fallbackPrice, features, Instant.now());
-    }
-
-    /**
      * Check circuit breaker state.
      *
      * @return true if the circuit is CLOSED or HALF_OPEN (call is allowed),
-     *         false if the circuit is OPEN (call should use fallback)
+     *         false if the circuit is OPEN (call should throw exception)
      */
     private boolean checkCircuit() {
         CircuitState currentState = circuitState.get();
@@ -212,7 +193,7 @@ public class MlModelClient implements ModelInferencePort {
                 // Another thread already transitioned, check again
                 return checkCircuit();
             } else {
-                log.debug("Circuit breaker: OPEN, using fallback");
+                log.debug("Circuit breaker: OPEN, rejecting request");
                 return false;
             }
         }

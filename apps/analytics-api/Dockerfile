@@ -37,9 +37,9 @@ EXPOSE 8002
 # Set JVM options for production
 ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=15s \
+# Health check — wait for the actuator health endpoint
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=30s \
   CMD wget -q --spider http://localhost:8002/actuator/health || exit 1
 
 # Run the application
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]

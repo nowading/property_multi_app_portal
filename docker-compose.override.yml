@@ -1,0 +1,58 @@
+# =============================================================================
+# Development Override — Hot-Reload Configuration
+# =============================================================================
+# This file is automatically loaded by docker-compose when present.
+# It overrides the base docker-compose.yml for local development,
+# enabling hot-reload without rebuilding images on every code change.
+#
+# Usage: docker compose up -d  (automatically merges with this file)
+# Production: docker compose -f docker-compose.yml up -d (ignores this file)
+# =============================================================================
+
+services:
+  # Analytics API — Development Mode with Hot Reload
+  analytics-api:
+    # Use the Maven build stage image (not the slim JRE runtime image)
+    # so we have the full JDK + Maven to run spring-boot:run
+    build:
+      context: ./apps/analytics-api
+      dockerfile: Dockerfile.dev
+    # Override the entrypoint to use Maven spring-boot:run
+    command: >
+      sh -c "
+      mvn spring-boot:run
+      -Dspring-boot.run.jvmArguments='-Xms256m -Xmx512m -XX:+UseG1GC'
+      -Dspring-boot.run.profiles=dev
+      "
+    # Volume mounts for hot reload
+    volumes:
+      # Source code — changes are reflected immediately
+      - ./apps/analytics-api/src:/app/src
+      # Maven local repository cache (avoid re-downloading dependencies)
+      - analytics-maven-cache:/root/.m2/repository
+      # Application config
+      - ./apps/analytics-api/src/main/resources:/app/src/main/resources
+    # Environment for dev profile
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DEVTOOLS_RESTART_ENABLED: "true"
+      SPRING_DEVTOOLS_LIVE_RELOAD_ENABLED: "true"
+
+  # Estimator API — Development Mode with Hot Reload
+  estimator-api:
+    # Mount source for Python hot reload
+    volumes:
+      - ./apps/estimator-api/app:/app/app
+    # Use uvicorn with --reload flag
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+
+  # Web Portal — Development Mode with Hot Reload
+  web:
+    # Mount Next.js source for hot reload
+    volumes:
+      - ./apps/web/src:/app/src
+      - ./apps/web/public:/app/public
+    # Use Next.js dev mode
+    command: npm run dev -- -p 3000
+    environment:
+      NODE_ENV: development

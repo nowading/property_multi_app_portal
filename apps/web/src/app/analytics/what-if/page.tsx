@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { WhatIfTool } from "@/components/analytics/WhatIfTool";
 import { serverFetch } from "@/lib/server-fetch";
+import { ANALYTICS_API_URL, ANALYTICS_API_PATHS } from "@/lib/api-config";
 import {
   DEFAULT_WHAT_IF_FEATURES,
   type WhatIfFeatures,
@@ -13,15 +14,12 @@ export const metadata = {
   title: "What-If Analysis",
 };
 
-const ANALYTICS_API_URL =
-  process.env.ANALYTICS_API_URL || "http://localhost:8002";
-
 export default async function WhatIfPage() {
   let initialFeatures: WhatIfFeatures = DEFAULT_WHAT_IF_FEATURES;
 
   try {
     const modelInfo = await serverFetch<{ features: WhatIfFeatures }>(
-      `${ANALYTICS_API_URL}/api/model-info`,
+      `${ANALYTICS_API_URL}${ANALYTICS_API_PATHS.MODEL_INFO}`,
       { next: { revalidate: 300 } }
     );
     if (modelInfo?.features) {

@@ -1,0 +1,33 @@
+# =============================================================================
+# Analytics API — Development Dockerfile (Hot-Reload)
+# =============================================================================
+# This Dockerfile is used exclusively for local development.
+# It uses the full Maven+JDK image instead of the slim JRE runtime,
+# enabling spring-boot:run with DevTools for real-time hot reload.
+#
+# Compared to the production Dockerfile:
+# - Uses maven:3.9-eclipse-temurin-21 (full JDK + Maven) instead of JRE only
+# - Does NOT package into a fat JAR (that's handled by docker volume mounts)
+# - Source code is mounted from the host via docker-compose.override.yml
+# =============================================================================
+
+FROM maven:3.9-eclipse-temurin-21 AS dev
+
+WORKDIR /app
+
+# Copy pom.xml first for dependency caching
+COPY pom.xml .
+
+# Download dependencies (cached unless pom.xml changes)
+RUN mvn dependency:go-offline -B
+
+# Copy the rest of the project structure
+# Note: src/ will be overridden by volume mount in development
+COPY src/ src/
+
+# Expose the application port
+EXPOSE 8002
+
+# Default command — overridden by docker-compose.override.yml
+# This allows the Dockerfile.dev to work standalone if needed
+CMD ["mvn", "spring-boot:run", "-Dspring-boot.run.jvmArguments='-Xms256m -Xmx512m -XX:+UseG1GC'"]

@@ -4,32 +4,32 @@ import com.portal.analytics.domain.*;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /**
- * CSV-backed implementation of {@link DatasetPort}.
+ * CSV-backed fallback implementation of {@link DatasetPort}.
  *
  * <p>Loads housing.csv from classpath resources at startup into an
  * in-memory list and exposes query/filter/pagination methods.
- * Thread-safe via ConcurrentHashMap for filtered counts.
+ * Thread-safe via ConcurrentHashMap for filtered counts.</p>
+ *
+ * <p>Activated ONLY when the {@code csv} Spring profile is explicitly
+ * selected (e.g. {@code spring.profiles.active=csv}). Combined with
+ * MySQL being the primary (via {@code @Primary} on {@link MysqlDatasetPort}),
+ * this prevents the CSV port from being accidentally used in production
+ * while still allowing local/demo deployments to opt-in.</p>
  */
 @Component
+@Profile("csv")
 public class CsvDatasetPort implements DatasetPort {
 
     private static final Logger log = LoggerFactory.getLogger(CsvDatasetPort.class);
-
-    private static final String CSV_RESOURCE = "data/housing.csv";
 
     private final List<PropertyRow> rows = new ArrayList<>();
     private final Map<String, Long> filterCountsCache = new ConcurrentHashMap<>();
@@ -39,61 +39,9 @@ public class CsvDatasetPort implements DatasetPort {
      */
     @PostConstruct
     public void init() {
-        try {
-            loadCsvData();
-            log.info("Loaded {} property rows from {}", rows.size(), CSV_RESOURCE);
-        } catch (IOException e) {
-            log.error("Failed to load CSV data from {}", CSV_RESOURCE, e);
-            throw new RuntimeException("Failed to initialize dataset", e);
-        }
-    }
-
-    private void loadCsvData() throws IOException {
-        ClassPathResource resource = new ClassPathResource(CSV_RESOURCE);
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
-
-            // Skip header line
-            String header = reader.readLine();
-            if (header == null) {
-                log.warn("Empty CSV file: {}", CSV_RESOURCE);
-                return;
-            }
-
-            String line;
-            int rowCount = 0;
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                if (line.isEmpty()) {
-                    continue;
-                }
-                try {
-                    PropertyRow row = parseRow(line, ++rowCount);
-                    rows.add(row);
-                } catch (NumberFormatException e) {
-                    log.warn("Skipping malformed CSV line {}: {}", rowCount, line);
-                }
-            }
-        }
-    }
-
-    private PropertyRow parseRow(String line, int expectedId) {
-        String[] parts = line.split(",");
-        if (parts.length < 9) {
-            throw new NumberFormatException("Expected 9 columns, got " + parts.length);
-        }
-
-        return new PropertyRow(
-                Integer.parseInt(parts[0].trim()),
-                Double.parseDouble(parts[1].trim()),
-                Integer.parseInt(parts[2].trim()),
-                Double.parseDouble(parts[3].trim()),
-                Integer.parseInt(parts[4].trim()),
-                Double.parseDouble(parts[5].trim()),
-                Double.parseDouble(parts[6].trim()),
-                Double.parseDouble(parts[7].trim()),
-                Double.parseDouble(parts[8].trim())
-        );
+        List<PropertyRow> loaded = CsvDataLoader.loadRows(CsvDataLoader.DEFAULT_RESOURCE);
+        rows.addAll(loaded);
+        log.info("Loaded {} property rows from {}", rows.size(), CsvDataLoader.DEFAULT_RESOURCE);
     }
 
     @Override

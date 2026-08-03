@@ -4,6 +4,51 @@ server:
 spring:
   application:
     name: analytics-api
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:analytics_db}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:analytics}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: AnalyticsHikariPool
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN:5}
+      connection-timeout: ${DB_TIMEOUT_MS:30000}
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+# Database configuration with HA extension points.
+# In the current single-node deployment, only `primary` is used.
+# Set `portal.datasource.ha.enabled=true` and provide replicas to switch
+# to read-write split / cluster / proxy strategies without code changes.
+portal:
+  datasource:
+    enabled: false
+    primary:
+      host: ${DB_HOST:localhost}
+      port: ${DB_PORT:3306}
+      database: ${DB_NAME:analytics_db}
+      username: ${DB_USERNAME:analytics}
+      password: ${DB_PASSWORD}
+    ha:
+      enabled: ${DB_HA_ENABLED:false}
+      strategy: ${DB_HA_STRATEGY:SINGLE}   # SINGLE | REPLICATION | CLUSTER | PROXY
+      replicas: []
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN:5}
+      connection-timeout: ${DB_TIMEOUT_MS:30000}
+      idle-timeout: 600000
+      max-lifetime: 1800000
 
 # ML Service Configuration
 ml:
