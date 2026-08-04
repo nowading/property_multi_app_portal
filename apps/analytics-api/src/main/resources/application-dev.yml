@@ -43,6 +43,21 @@ spring:
       enabled: true
     livereload:
       enabled: true
+  # Redis Distributed Cache Configuration — dev profile
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 5s
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 4
+          min-idle: 1
+          max-wait: 5s
+  cache:
+    type: redis
 
 # ML Service Configuration — use local Docker network
 ml:
@@ -81,9 +96,10 @@ logging:
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 
-# Cache Configuration
-spring.cache:
-  type: caffeine
+# Portal Cache Settings
+portal:
+  cache:
+    enabled: ${CACHE_ENABLED:true}
 
 # CORS — allow all origins in development
 analytics:

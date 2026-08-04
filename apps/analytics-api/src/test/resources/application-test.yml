@@ -1,12 +1,7 @@
 server:
   port: 8002
 
-# In tests we use H2 via Spring Boot auto-config; the MySQL HA wiring is
-# disabled explicitly so it does not override the test datasource.
-portal:
-  datasource:
-    enabled: false
-
+# Test profile — uses H2 in-memory database and Caffeine cache (via TestCacheConfig)
 spring:
   application:
     name: analytics-api-test
@@ -26,9 +21,16 @@ spring:
       hibernate:
         format_sql: true
     defer-datasource-initialization: true
+  jackson:
+    date-format: yyyy-MM-dd'T'HH:mm:ss'Z'
+    time-zone: UTC
 
-spring.cache:
-  type: caffeine
+# Portal config for test profile — disable Redis cache (no Redis server in tests)
+portal:
+  datasource:
+    enabled: false
+  cache:
+    enabled: false
 
 ml:
   service:
@@ -43,7 +45,3 @@ management:
   endpoint:
     health:
       show-details: always
-
-spring.jackson:
-  date-format: yyyy-MM-dd'T'HH:mm:ss'Z'
-  time-zone: UTC

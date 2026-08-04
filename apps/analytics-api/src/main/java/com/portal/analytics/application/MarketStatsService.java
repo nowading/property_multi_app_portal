@@ -1,9 +1,8 @@
 package com.portal.analytics.application;
 
-import com.github.benmanes.caffeine.cache.Cache;
 import com.portal.analytics.adapters.persistence.CacheConfig;
 import com.portal.analytics.domain.*;
-import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -18,13 +17,12 @@ import java.util.stream.Collectors;
  * rows and computes KPIs, histograms, scatter plots, and box plots using
  * pure Java logic — no database or external analytics engine needed.
  *
- * <p>Results are cached in Caffeine for 10 minutes with max 1000 entries per cache key.
+ * <p>Results are cached in Redis for 10 minutes with key derived from filter criteria.
  */
 @Service
 public class MarketStatsService {
 
     private final DatasetPort datasetPort;
-    private final Cache<String, MarketStats> statsCache;
 
     /** Number of histogram bins for price distribution. */
     private static final int HISTOGRAM_BINS = 10;
@@ -32,27 +30,24 @@ public class MarketStatsService {
     /** Maximum number of scatter points to include (for performance). */
     private static final int MAX_SCATTER_POINTS = 100;
 
-    public MarketStatsService(DatasetPort datasetPort,
-                              @Qualifier(CacheConfig.STATS_CACHE) Cache<String, MarketStats> statsCache) {
+    public MarketStatsService(DatasetPort datasetPort) {
         this.datasetPort = datasetPort;
-        this.statsCache = statsCache;
     }
 
     /**
      * Compute aggregate market statistics with optional filters.
-     * Results are cached using a hash of the filter criteria as cache key.
+     * Results are cached in Redis using a hash of the filter criteria as cache key.
      *
      * @param filters optional filter criteria (may be null or empty)
      * @return complete market stats with KPIs, histogram, scatter, and box plot
      */
+    @Cacheable(value = CacheConfig.STATS_CACHE, key = "#filters == null ? 'default' : #filters.cacheKey()")
     public MarketStats getAggregateStats(StatsFilters filters) {
         StatsFilters effectiveFilters = filters != null ? filters : new StatsFilters(
                 null, null, null, null, null, null, null, null, null
         );
 
-        String cacheKey = toCacheKey(effectiveFilters);
-
-        return statsCache.get(cacheKey, key -> computeStats(effectiveFilters));
+        return computeStats(effectiveFilters);
     }
 
     private MarketStats computeStats(StatsFilters filters) {
@@ -70,10 +65,6 @@ public class MarketStatsService {
         List<BoxPlotGroup> boxPlot = computeBoxPlot(rows, filters);
 
         return new MarketStats(kpis, histogram, scatter, boxPlot, filters);
-    }
-
-    private String toCacheKey(StatsFilters filters) {
-        return "stats:" + filters.cacheKey();
     }
 
     /**

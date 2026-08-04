@@ -4,7 +4,6 @@ import com.portal.analytics.domain.DatasetPage;
 import com.portal.analytics.domain.DatasetPort;
 import com.portal.analytics.domain.PropertyRow;
 import com.portal.analytics.domain.StatsFilters;
-import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
@@ -20,7 +19,6 @@ import java.util.List;
  * via JPA Specifications and paginated queries via Spring Data Pageable.
  */
 @Component
-@Primary
 public class MysqlDatasetPort implements DatasetPort {
 
     private final PropertyRepository propertyRepository;

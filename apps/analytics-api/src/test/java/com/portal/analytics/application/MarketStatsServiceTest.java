@@ -1,33 +1,52 @@
 package com.portal.analytics.application;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import com.portal.analytics.adapters.persistence.TestCacheConfig;
 import com.portal.analytics.domain.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.cache.CacheManager;
+import org.springframework.test.context.ActiveProfiles;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit tests for {@link MarketStatsService}.
+ * Integration tests for {@link MarketStatsService} with Caffeine test cache
+ * and in-memory dataset port.
  */
-@DisplayName("MarketStatsService")
+@SpringBootTest
+@ActiveProfiles("test")
+@DisplayName("MarketStatsService (with cache)")
 class MarketStatsServiceTest {
 
+    @Autowired
     private MarketStatsService service;
-    private InMemoryDatasetPort datasetPort;
+
+    @Autowired
+    private CacheManager cacheManager;
+
+    @Autowired
+    private DatasetPort datasetPort;
 
     @BeforeEach
     void setUp() {
-        datasetPort = new InMemoryDatasetPort();
-        Cache<String, MarketStats> cache = Caffeine.newBuilder()
-                .maximumSize(100)
-                .build();
-        service = new MarketStatsService(datasetPort, cache);
+        // Clear all caches before each test
+        var cacheNames = cacheManager.getCacheNames();
+        for (String name : cacheNames) {
+            var cache = cacheManager.getCache(name);
+            if (cache != null) {
+                cache.clear();
+            }
+        }
+
+        // Clear in-memory dataset before each test
+        if (datasetPort instanceof TestCacheConfig.InMemoryDatasetPort inMemory) {
+            inMemory.clear();
+        }
     }
 
     @Test
@@ -98,69 +117,26 @@ class MarketStatsServiceTest {
     }
 
     @Test
-    @DisplayName("should get aggregate stats with filters")
+    @DisplayName("should get aggregate stats with filters and cache results")
     void getAggregateStatsWithFilters() {
-        datasetPort.addRow(new PropertyRow(1, 1500, 2, 1, 1990, 3000, 5, 6, 200000));
-        datasetPort.addRow(new PropertyRow(2, 2000, 3, 2, 2000, 5000, 3, 8, 300000));
-        datasetPort.addRow(new PropertyRow(3, 2500, 4, 2, 2010, 7000, 8, 7, 400000));
+        // Given
+        if (datasetPort instanceof TestCacheConfig.InMemoryDatasetPort inMemory) {
+            inMemory.addRow(new PropertyRow(1, 1500, 2, 1, 1990, 3000, 5, 6, 200000));
+            inMemory.addRow(new PropertyRow(2, 2000, 3, 2, 2000, 5000, 3, 8, 300000));
+            inMemory.addRow(new PropertyRow(3, 2500, 4, 2, 2010, 7000, 8, 7, 400000));
+        }
 
         StatsFilters filters = new StatsFilters(3, null, null, null, null, null, null, null, null);
+
+        // When
         MarketStats stats = service.getAggregateStats(filters);
 
+        // Then
         assertThat(stats.kpis().count()).isEqualTo(2);
         assertThat(stats.kpis().avgPrice()).isEqualTo(350000.0);
-    }
 
-    /**
-     * Simple in-memory dataset port for testing.
-     */
-    private static class InMemoryDatasetPort implements DatasetPort {
-        private final List<PropertyRow> rows = new ArrayList<>();
-
-        void addRow(PropertyRow row) {
-            rows.add(row);
-        }
-
-        @Override
-        public List<PropertyRow> findAll() {
-            return List.copyOf(rows);
-        }
-
-        @Override
-        public List<PropertyRow> findByFilters(StatsFilters filters) {
-            return rows.stream()
-                    .filter(row -> matchesFilter(row, filters))
-                    .toList();
-        }
-
-        @Override
-        public DatasetPage findPage(StatsFilters filters, int page, int pageSize) {
-            List<PropertyRow> filtered = findByFilters(filters);
-            long total = filtered.size();
-            int fromIndex = (page - 1) * pageSize;
-            int toIndex = Math.min(fromIndex + pageSize, filtered.size());
-            List<PropertyRow> pageRows = fromIndex >= total
-                    ? List.of()
-                    : filtered.subList(fromIndex, toIndex);
-            return new DatasetPage(pageRows, total, page, pageSize);
-        }
-
-        @Override
-        public long countByFilters(StatsFilters filters) {
-            return findByFilters(filters).size();
-        }
-
-        private boolean matchesFilter(PropertyRow row, StatsFilters filters) {
-            if (filters.bedroomsMin() != null && row.bedrooms() < filters.bedroomsMin()) return false;
-            if (filters.bedroomsMax() != null && row.bedrooms() > filters.bedroomsMax()) return false;
-            if (filters.yearBuiltMin() != null && row.yearBuilt() < filters.yearBuiltMin()) return false;
-            if (filters.yearBuiltMax() != null && row.yearBuilt() > filters.yearBuiltMax()) return false;
-            if (filters.distanceMax() != null && row.distanceToCityCenter() > filters.distanceMax()) return false;
-            if (filters.schoolRatingMin() != null && row.schoolRating() < filters.schoolRatingMin()) return false;
-            if (filters.schoolRatingMax() != null && row.schoolRating() > filters.schoolRatingMax()) return false;
-            if (filters.priceMin() != null && row.price() < filters.priceMin()) return false;
-            if (filters.priceMax() != null && row.price() > filters.priceMax()) return false;
-            return true;
-        }
+        // Second call should hit the cache
+        MarketStats cachedStats = service.getAggregateStats(filters);
+        assertThat(cachedStats.kpis().count()).isEqualTo(2);
     }
 }

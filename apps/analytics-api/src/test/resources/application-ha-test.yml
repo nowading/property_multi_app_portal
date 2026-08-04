@@ -4,6 +4,20 @@ server:
 # HA-test profile: verifies that the MysqlDatasourceConfig wires correctly
 # without requiring a real MySQL server. We use HikariCP in "no-connect"
 # mode by default (lazy-init), so just defining the bean is sufficient.
+spring:
+  sql:
+    init:
+      mode: never
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  cache:
+    type: caffeine
+
 portal:
   datasource:
     enabled: true
@@ -23,18 +37,3 @@ portal:
       connection-timeout: 15000
       idle-timeout: 300000
       max-lifetime: 1200000
-
-spring:
-  sql:
-    init:
-      mode: never
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
-
-spring.cache:
-  type: caffeine

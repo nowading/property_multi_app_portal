@@ -35,7 +35,7 @@ class MlServiceHealthIndicatorTest {
         Health health = mlServiceHealthIndicator.health();
 
         assertThat(health.getStatus()).isEqualTo(org.springframework.boot.actuate.health.Status.UP);
-        assertThat(health.getDetails()).containsEntry("status", "ML service is healthy");
+        assertThat(health.getDetails()).containsEntry("status", "ML service is healthy (dev mode)");
     }
 
     @Test

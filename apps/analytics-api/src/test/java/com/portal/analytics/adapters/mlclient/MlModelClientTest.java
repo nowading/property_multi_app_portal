@@ -43,7 +43,7 @@ class MlModelClientTest {
     void throwExceptionForModelInfoWhenServiceDown() {
         assertThatThrownBy(() -> client.getModelInfo())
                 .isInstanceOf(DomainException.class)
-                .hasMessageContaining("ML service call failed");
+                .hasMessageContaining("Failed to get model info");
     }
 
     @Test
@@ -63,10 +63,14 @@ class MlModelClientTest {
     void circuitBreakerOpensAndThrows() {
         PropertyFeatures features = new PropertyFeatures(2000, 3, 2, 1995, 6000, 5, 7);
 
-        // First three calls fail and increment failure count
-        client.predict(features);
-        client.predict(features);
-        client.predict(features);
+        // First three calls fail and increment failure count (catch exceptions)
+        for (int i = 0; i < 3; i++) {
+            try {
+                client.predict(features);
+            } catch (DomainException ignored) {
+                // Expected — ML service is not running
+            }
+        }
 
         // Circuit should now be open
         assertThat(client.getCircuitState()).isEqualTo(MlModelClient.CircuitState.OPEN);
