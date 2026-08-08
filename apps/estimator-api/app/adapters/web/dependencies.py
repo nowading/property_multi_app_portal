@@ -61,17 +61,24 @@ def init_adapters(
     """
     url = ml_service_url or settings.ml_service_url
     token = settings.internal_service_token or None
+    # Phase C: pass CA bundle to httpx for TLS verification of the ML
+    # container. ``ml_ca_bundle_path`` is empty in unit tests / dev mode
+    # to fall back to system trust store (or httpx default behaviour).
+    verify: str | bool = settings.ml_ca_bundle_path or True
     container.model_inference = HttpxModelInference(
         base_url=url,
         connect_timeout=2.0,
         read_timeout=5.0,
         internal_service_token=token,
+        verify=verify,
     )
     container.history_repository = InMemoryHistoryRepository(capacity=history_capacity)
     logger.info(
-        "adapters_initialized ml_service_url=%s internal_token_configured=%s",
+        "adapters_initialized ml_service_url=%s internal_token_configured=%s "
+        "tls_verify=%s",
         url,
         bool(token),
+        verify if isinstance(verify, bool) else f"ca={verify}",
     )
 
 
