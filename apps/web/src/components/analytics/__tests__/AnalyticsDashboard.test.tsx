@@ -158,32 +158,65 @@ describe("AnalyticsDashboard", () => {
 
       expect(screen.getByText("1 filter active")).toBeInTheDocument();
     });
-  });
 
-  describe("filter integration", () => {
-    it("updates KPI values when filters change (fetches new data)", async () => {
+    it("does NOT trigger duplicate client fetch when RSC data is provided", async () => {
       jest.useFakeTimers();
+      apiAnalyticsMock.fetchStats.mockClear();
+      apiAnalyticsMock.fetchDataset.mockClear();
 
       const stats = generateMarketStats(42);
-      render(<AnalyticsDashboard initialStats={stats} />);
+      const dataset = {
+        rows: generatePropertyDataset(42),
+        total: 50,
+        page: 1,
+        page_size: 50,
+      };
 
-      const initialAvgPrice = getKpiValue("Average Price");
+      render(
+        <AnalyticsDashboard
+          initialStats={stats}
+          initialDataset={dataset}
+          initialFilters={{ school_rating_min: 7.5 }}
+        />
+      );
 
-      const slider = screen.getByLabelText("Min Bedrooms range slider");
-      fireEvent.change(slider, { target: { value: "5" } });
+      // Advance past the debounce timeout
+      await act(async () => {
+        jest.advanceTimersByTime(500);
+        await Promise.resolve();
+      });
+
+      // Both fetch functions should NOT have been called — RSC data is used directly
+      expect(apiAnalyticsMock.fetchStats).not.toHaveBeenCalled();
+      expect(apiAnalyticsMock.fetchDataset).not.toHaveBeenCalled();
+
+      jest.useRealTimers();
+    });
+
+    it("falls back to client fetch when RSC pre-fetch fails (no initial data)", async () => {
+      jest.useFakeTimers();
+      apiAnalyticsMock.fetchStats.mockClear();
+      apiAnalyticsMock.fetchDataset.mockClear();
+
+      render(<AnalyticsDashboard />);
+
+      // Initial render shows loading
+      expect(screen.getByText("Loading market data...")).toBeInTheDocument();
 
       await act(async () => {
         jest.advanceTimersByTime(300);
         await Promise.resolve();
       });
 
-      const updatedAvgPrice = getKpiValue("Average Price");
-
-      expect(updatedAvgPrice).not.toBe(initialAvgPrice);
+      // Client fetch should be called exactly once each
+      expect(apiAnalyticsMock.fetchStats).toHaveBeenCalledTimes(1);
+      expect(apiAnalyticsMock.fetchDataset).toHaveBeenCalledTimes(1);
 
       jest.useRealTimers();
     });
+  });
 
+  describe("filter integration", () => {
     it("shows active filter count when filters are applied", () => {
       render(<AnalyticsDashboard />);
 
@@ -235,6 +268,135 @@ describe("AnalyticsDashboard", () => {
       fireEvent.change(slider, { target: { value: "5" } });
 
       expect(screen.getAllByText(expectedPrice).length).toBeGreaterThan(0);
+    });
+
+    it("skips client fetch when RSC delivers new data for changed filters", async () => {
+      // Simulates the full RSC flow: user changes filter → router.replace
+      // → RSC re-renders with new initialFilters + initialStats + initialDataset.
+      // The client effect should NOT fetch because RSC already did.
+      jest.useFakeTimers();
+      apiAnalyticsMock.fetchStats.mockClear();
+      apiAnalyticsMock.fetchDataset.mockClear();
+
+      const stats = generateMarketStats(42);
+      const dataset = {
+        rows: generatePropertyDataset(42),
+        total: 50,
+        page: 1,
+        page_size: 50,
+      };
+
+      const { rerender } = render(
+        <AnalyticsDashboard
+          initialStats={stats}
+          initialDataset={dataset}
+          initialFilters={{ bedrooms_min: 2 }}
+        />
+      );
+
+      // Clear mocks after initial render
+      apiAnalyticsMock.fetchStats.mockClear();
+      apiAnalyticsMock.fetchDataset.mockClear();
+
+      // User changes filter
+      const slider = screen.getByLabelText("Min Bedrooms range slider");
+      fireEvent.change(slider, { target: { value: "5" } });
+
+      // At this point the effect fires but sees rscFiltersKey !== currentFiltersKey
+      // because initialFilters is still {bedrooms_min: 2}.  It records the timestamp
+      // and returns without fetching.
+
+      // Now simulate RSC delivering new props (via rerender)
+      const newStats = generateMarketStats(99, { bedrooms_min: 5 });
+      const newDataset = {
+        rows: generatePropertyDataset(99, { bedrooms_min: 5 }),
+        total: 30,
+        page: 1,
+        page_size: 50,
+      };
+      rerender(
+        <AnalyticsDashboard
+          initialStats={newStats}
+          initialDataset={newDataset}
+          initialFilters={{ bedrooms_min: 5 }}
+        />
+      );
+
+      // Advance past grace period + debounce
+      await act(async () => {
+        jest.advanceTimersByTime(1000);
+        await Promise.resolve();
+      });
+
+      // Client fetch should NOT have been called — RSC delivered the data
+      expect(apiAnalyticsMock.fetchStats).not.toHaveBeenCalled();
+      expect(apiAnalyticsMock.fetchDataset).not.toHaveBeenCalled();
+
+      // UI should show the new data from RSC
+      const expectedPrice = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 0,
+      }).format(newStats.kpis.avg_price);
+      expect(screen.getByText(expectedPrice)).toBeInTheDocument();
+
+      jest.useRealTimers();
+    });
+
+    it("falls back to client fetch when RSC delivers null data for changed filters", async () => {
+      // Simulates RSC re-render that failed (initialStats=null, initialDataset=null).
+      // The client effect should fall through and perform its own fetch.
+      jest.useFakeTimers();
+      apiAnalyticsMock.fetchStats.mockClear();
+      apiAnalyticsMock.fetchDataset.mockClear();
+
+      const stats = generateMarketStats(42);
+      const dataset = {
+        rows: generatePropertyDataset(42),
+        total: 50,
+        page: 1,
+        page_size: 50,
+      };
+
+      const { rerender } = render(
+        <AnalyticsDashboard
+          initialStats={stats}
+          initialDataset={dataset}
+          initialFilters={{ bedrooms_min: 2 }}
+        />
+      );
+
+      apiAnalyticsMock.fetchStats.mockClear();
+      apiAnalyticsMock.fetchDataset.mockClear();
+
+      // User changes filter
+      const slider = screen.getByLabelText("Min Bedrooms range slider");
+      fireEvent.change(slider, { target: { value: "5" } });
+
+      // RSC re-render with null data (failed fetch)
+      rerender(
+        <AnalyticsDashboard
+          initialStats={null}
+          initialDataset={null}
+          initialFilters={{ bedrooms_min: 5 }}
+        />
+      );
+
+      // Advance past grace period + debounce
+      await act(async () => {
+        jest.advanceTimersByTime(1000);
+        await Promise.resolve();
+      });
+
+      // Client should have performed its own fetch as fallback
+      expect(apiAnalyticsMock.fetchStats).toHaveBeenCalledTimes(1);
+      expect(apiAnalyticsMock.fetchDataset).toHaveBeenCalledTimes(1);
+      expect(apiAnalyticsMock.fetchStats).toHaveBeenCalledWith(
+        expect.objectContaining({ bedrooms_min: 5 }),
+        expect.any(Object)
+      );
+
+      jest.useRealTimers();
     });
   });
 
@@ -310,6 +472,76 @@ describe("AnalyticsDashboard", () => {
       });
 
       expect(navMock.__routerReplace).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Strict Mode deduplication (double-mount resilience)", () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      apiAnalyticsMock.fetchStats.mockClear();
+      apiAnalyticsMock.fetchDataset.mockClear();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it("resists React Strict Mode double-mount when RSC data is provided", async () => {
+      const stats = generateMarketStats(42);
+      const dataset = {
+        rows: generatePropertyDataset(42),
+        total: 50,
+        page: 1,
+        page_size: 50,
+      };
+      const filters: StatsFilters = { school_rating_min: 7.5 };
+
+      // First mount
+      const { unmount } = render(
+        <AnalyticsDashboard
+          initialStats={stats}
+          initialDataset={dataset}
+          initialFilters={filters}
+        />
+      );
+
+      // Strict Mode unmount
+      unmount();
+
+      // Second mount (same props)
+      render(
+        <AnalyticsDashboard
+          initialStats={stats}
+          initialDataset={dataset}
+          initialFilters={filters}
+        />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(1000);
+        await Promise.resolve();
+      });
+
+      expect(apiAnalyticsMock.fetchStats).not.toHaveBeenCalled();
+      expect(apiAnalyticsMock.fetchDataset).not.toHaveBeenCalled();
+    });
+
+    it("fetches data when no RSC pre-fetched data is available", async () => {
+      // Scenario: no initialStats/initialDataset.
+      // rscFiltersKey === currentFiltersKey (both "{}") but no data → fallback fetch.
+      render(<AnalyticsDashboard initialFilters={{ bedrooms_min: 3 }} />);
+
+      await act(async () => {
+        jest.advanceTimersByTime(1000);
+        await Promise.resolve();
+      });
+
+      expect(apiAnalyticsMock.fetchStats).toHaveBeenCalledTimes(1);
+      expect(apiAnalyticsMock.fetchDataset).toHaveBeenCalledTimes(1);
+      expect(apiAnalyticsMock.fetchStats).toHaveBeenCalledWith(
+        expect.objectContaining({ bedrooms_min: 3 }),
+        expect.any(Object)
+      );
     });
   });
 });
