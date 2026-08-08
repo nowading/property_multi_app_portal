@@ -29,6 +29,7 @@ public class MlHealthClient implements HealthPort {
         this.mlServiceUrl = mlServiceUrl;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(2))
+                .version(HttpClient.Version.HTTP_1_1)
                 .build();
     }
 
