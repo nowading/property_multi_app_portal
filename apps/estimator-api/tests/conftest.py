@@ -37,6 +37,7 @@ from app.application import (
     ListHistoryUseCase,
     PredictUseCase,
 )
+from app.core.config import settings
 from app.domain import (
     HistoryEntry,
     HistoryRepositoryPort,
@@ -50,6 +51,12 @@ from app.domain import (
     PropertyFeatures,
 )
 from app.main import create_app
+
+
+# Standard test token used by all suites. Shared between the autouse
+# env-mutating fixture and the request-header fixtures so that a value
+# written to ``os.environ`` and a value sent in a request always agree.
+TEST_INTERNAL_TOKEN = "test-internal-token-please-do-not-use-in-prod"
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +167,26 @@ class FakeHistoryRepository(HistoryRepositoryPort):
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _set_internal_service_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Configure the internal service token for every test.
+
+    Sets both ``os.environ["INTERNAL_SERVICE_TOKEN"]`` (so the production
+    code path that reads env at startup behaves as expected) and
+    ``settings.internal_service_token`` (so the already-instantiated
+    ``Settings`` instance reflects the test value without needing to be
+    rebuilt). Restored automatically by ``monkeypatch`` after the test.
+    """
+    monkeypatch.setenv("INTERNAL_SERVICE_TOKEN", TEST_INTERNAL_TOKEN)
+    monkeypatch.setattr(settings, "internal_service_token", TEST_INTERNAL_TOKEN)
+
+
+@pytest.fixture
+def auth_headers() -> dict[str, str]:
+    """Headers a request needs to pass the inbound ``x-internal-token`` check."""
+    return {"x-internal-token": TEST_INTERNAL_TOKEN}
+
+
 @pytest.fixture
 def fake_model() -> FakeModelInference:
     return FakeModelInference()
@@ -213,6 +240,20 @@ def client(app: FastAPI) -> TestClient:
     an ASGI transport. The lifespan runs ``init_adapters`` (creating a real
     ``HttpxModelInference`` pointed at ``ML_SERVICE_URL``) but no requests
     reach it because every use case is overridden to use the fakes.
+
+    The default headers include the test internal-service token so the
+    ``InternalAuthMiddleware`` lets requests through. Tests that exercise
+    the auth middleware itself use ``unauthenticated_client`` instead.
+    """
+    return TestClient(app, headers={"x-internal-token": TEST_INTERNAL_TOKEN})
+
+
+@pytest.fixture
+def unauthenticated_client(app: FastAPI) -> TestClient:
+    """HTTP client with NO auth headers — used to exercise the auth middleware.
+
+    Routes exempt from auth (``/healthz``) still respond normally; all
+    other paths return 401.
     """
     return TestClient(app)
 

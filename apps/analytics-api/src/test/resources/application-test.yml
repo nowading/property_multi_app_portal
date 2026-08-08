@@ -35,6 +35,11 @@ portal:
 ml:
   service:
     url: http://localhost:8000
+    token: test-internal-token-for-unit-tests
+
+internal:
+  service:
+    token: test-internal-token-for-unit-tests
 
 management:
   endpoints:

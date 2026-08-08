@@ -21,27 +21,38 @@ public class MlHealthClient implements HealthPort {
     private static final Logger log = LoggerFactory.getLogger(MlHealthClient.class);
 
     private final String mlServiceUrl;
+    private final String internalServiceToken;
     private final HttpClient httpClient;
 
     public MlHealthClient(
-            @Value("${ml.service.url:http://localhost:8000}") String mlServiceUrl
+            @Value("${ml.service.url:http://localhost:8000}") String mlServiceUrl,
+            @Value("${ml.service.token:}") String internalServiceToken
     ) {
         this.mlServiceUrl = mlServiceUrl;
+        this.internalServiceToken = internalServiceToken == null ? "" : internalServiceToken;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(2))
                 .version(HttpClient.Version.HTTP_1_1)
                 .build();
+        if (this.internalServiceToken.isEmpty()) {
+            log.warn("ml.service.token is not configured; ML health probe will NOT include x-internal-token header.");
+        } else {
+            log.info("MlHealthClient: x-internal-token header will be attached to health probes (length={})",
+                    this.internalServiceToken.length());
+        }
     }
 
     @Override
     public boolean isHealthy() {
         String url = mlServiceUrl + "/health";
         try {
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(3))
-                    .GET()
-                    .build();
+                    .timeout(Duration.ofSeconds(3));
+            if (!internalServiceToken.isEmpty()) {
+                builder.header("x-internal-token", internalServiceToken);
+            }
+            HttpRequest request = builder.GET().build();
 
             HttpResponse<Void> response = httpClient.send(
                     request, HttpResponse.BodyHandlers.discarding()

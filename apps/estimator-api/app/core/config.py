@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     # ML container connection
     ml_service_url: str = "http://localhost:8000"
 
+    # Service-to-service auth: shared secret presented as `x-internal-token`
+    # on both inbound (from web) and outbound (to ML container) requests.
+    # Empty string disables the check (dev mode — logs a warning at startup).
+    internal_service_token: str = ""
+
     # Server bind
     estimator_api_host: str = "0.0.0.0"
     estimator_api_port: int = 8001

@@ -455,3 +455,102 @@ class TestAdapterLifecycle:
         adapter = HttpxModelInference(base_url="http://ml.test/")
         assert adapter._base_url == "http://ml.test"
         await adapter.aclose()
+
+
+# ---------------------------------------------------------------------------
+# Outbound x-internal-token header (Phase B.3 / Task B.3)
+# ---------------------------------------------------------------------------
+
+
+class TestOutboundInternalToken:
+    async def test_internal_token_set_as_default_header_when_provided(self) -> None:
+        """When constructed with a token, every outbound request must carry it."""
+
+        captured: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(200, json=predict_response(100.0))
+
+        # Build the adapter with a MockTransport-backed client *and* the
+        # token. The constructor applies the header as a default on the
+        # internally-created AsyncClient, so even though we inject a
+        # transport via ``httpx.MockTransport``, the adapter creates its
+        # own client underneath and the default header is applied.
+        adapter = HttpxModelInference(
+            base_url="http://ml.test",
+            internal_service_token="secret-123",
+        )
+        # Swap the owned client for a MockTransport-backed one (without
+        # losing the default headers — we copy them over).
+        transport = httpx.MockTransport(handler)
+        await adapter._client.aclose()
+        adapter._client = httpx.AsyncClient(
+            transport=transport,
+            base_url="http://ml.test",
+            headers=adapter._client.headers,
+        )
+
+        await adapter.predict(make_features())
+        await adapter.aclose()
+
+        assert len(captured) == 1
+        assert captured[0].headers.get("x-internal-token") == "secret-123"
+
+    async def test_internal_token_absent_when_not_provided(self) -> None:
+        """Without a token, no header is attached (backwards-compat default)."""
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            assert "x-internal-token" not in request.headers
+            return httpx.Response(200, json=predict_response(100.0))
+
+        adapter = HttpxModelInference(base_url="http://ml.test")
+        transport = httpx.MockTransport(handler)
+        await adapter._client.aclose()
+        adapter._client = httpx.AsyncClient(
+            transport=transport, base_url="http://ml.test"
+        )
+
+        await adapter.predict(make_features())
+        await adapter.aclose()
+
+    async def test_internal_token_sent_on_model_info(self) -> None:
+        """The token is a default header — every method, not just predict."""
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            assert request.headers.get("x-internal-token") == "tok-xyz"
+            return httpx.Response(200, json=model_info_payload())
+
+        adapter = HttpxModelInference(
+            base_url="http://ml.test",
+            internal_service_token="tok-xyz",
+        )
+        transport = httpx.MockTransport(handler)
+        await adapter._client.aclose()
+        adapter._client = httpx.AsyncClient(
+            transport=transport,
+            base_url="http://ml.test",
+            headers=adapter._client.headers,
+        )
+
+        await adapter.get_model_info()
+        await adapter.aclose()
+
+    async def test_internal_token_empty_string_treated_as_unset(self) -> None:
+        """An empty string is treated the same as ``None`` — no header sent."""
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            assert "x-internal-token" not in request.headers
+            return httpx.Response(200, json=health_payload())
+
+        adapter = HttpxModelInference(
+            base_url="http://ml.test", internal_service_token=""
+        )
+        transport = httpx.MockTransport(handler)
+        await adapter._client.aclose()
+        adapter._client = httpx.AsyncClient(
+            transport=transport, base_url="http://ml.test"
+        )
+
+        await adapter.is_healthy()
+        await adapter.aclose()

@@ -67,6 +67,14 @@ portal:
 ml:
   service:
     url: ${ML_SERVICE_URL:http://localhost:8000}
+    token: ${INTERNAL_SERVICE_TOKEN:}
+
+# Internal service-to-service authentication token
+# When empty, the InboundAuthFilter logs a warning and allows all requests (dev mode).
+# When set, every non-health request must present the matching x-internal-token header.
+internal:
+  service:
+    token: ${INTERNAL_SERVICE_TOKEN:}
 
 # Actuator Configuration
 management:

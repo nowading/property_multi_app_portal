@@ -37,3 +37,12 @@ portal:
       connection-timeout: 15000
       idle-timeout: 300000
       max-lifetime: 1200000
+
+ml:
+  service:
+    url: http://localhost:8000
+    token: test-internal-token-for-unit-tests
+
+internal:
+  service:
+    token: test-internal-token-for-unit-tests

@@ -6,6 +6,8 @@ services:
     container_name: house-price-ml
     expose:
       - "8000"
+    environment:
+      INTERNAL_SERVICE_TOKEN: "${INTERNAL_SERVICE_TOKEN:-}"
     healthcheck:
       test:
         - CMD
@@ -32,6 +34,7 @@ services:
       ESTIMATOR_API_HOST: "0.0.0.0"
       ESTIMATOR_API_PORT: "8001"
       LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      INTERNAL_SERVICE_TOKEN: "${INTERNAL_SERVICE_TOKEN:-}"
     depends_on:
       ml-container:
         condition: service_healthy
@@ -61,6 +64,7 @@ services:
       SERVER_PORT: "8002"
       LOG_LEVEL: "${LOG_LEVEL:-INFO}"
       JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+      INTERNAL_SERVICE_TOKEN: "${INTERNAL_SERVICE_TOKEN:-}"
       # MySQL Database Configuration
       DB_HOST: "mysql"
       DB_PORT: "3306"
@@ -152,6 +156,7 @@ services:
     environment:
       ESTIMATOR_API_URL: "http://estimator-api:8001"
       ANALYTICS_API_URL: "http://analytics-api:8002"
+      INTERNAL_SERVICE_TOKEN: "${INTERNAL_SERVICE_TOKEN:-}"
     depends_on:
       estimator-api:
         condition: service_healthy

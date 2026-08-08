@@ -38,6 +38,7 @@ public class MlModelClient implements ModelInferencePort {
     private static final Duration CIRCUIT_OPEN_DURATION = Duration.ofSeconds(30);
 
     private final String mlServiceUrl;
+    private final String internalServiceToken;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
@@ -52,15 +53,35 @@ public class MlModelClient implements ModelInferencePort {
 
     public MlModelClient(
             @Value("${ml.service.url:http://localhost:8000}") String mlServiceUrl,
+            @Value("${ml.service.token:}") String internalServiceToken,
             ObjectMapper objectMapper
     ) {
         this.mlServiceUrl = mlServiceUrl;
+        this.internalServiceToken = internalServiceToken == null ? "" : internalServiceToken;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(CONNECT_TIMEOUT)
                 .version(HttpClient.Version.HTTP_1_1)
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
+        if (this.internalServiceToken.isEmpty()) {
+            log.warn("ml.service.token is not configured; outbound calls to ML container will NOT include x-internal-token header. "
+                    + "Set INTERNAL_SERVICE_TOKEN env var to enable service-to-service auth.");
+        } else {
+            log.info("MlModelClient: x-internal-token header will be attached to outgoing requests (length={})",
+                    this.internalServiceToken.length());
+        }
+    }
+
+    /**
+     * Apply the internal service auth header to an outgoing request builder
+     * when a token is configured. No-op when the token is empty (dev mode).
+     */
+    private HttpRequest.Builder applyAuthHeader(HttpRequest.Builder builder) {
+        if (!internalServiceToken.isEmpty()) {
+            builder.header("x-internal-token", internalServiceToken);
+        }
+        return builder;
     }
 
     @Override
@@ -75,10 +96,10 @@ public class MlModelClient implements ModelInferencePort {
             String jsonBody = objectMapper.writeValueAsString(payload);
             log.debug("Sending ML predict request to {}: {}", url, jsonBody);
 
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest request = applyAuthHeader(HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .timeout(READ_TIMEOUT)
-                    .header("Content-Type", "application/json")
+                    .header("Content-Type", "application/json"))
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
@@ -119,9 +140,9 @@ public class MlModelClient implements ModelInferencePort {
 
         String url = mlServiceUrl + "/model-info";
         try {
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest request = applyAuthHeader(HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .timeout(READ_TIMEOUT)
+                    .timeout(READ_TIMEOUT))
                     .GET()
                     .build();
 

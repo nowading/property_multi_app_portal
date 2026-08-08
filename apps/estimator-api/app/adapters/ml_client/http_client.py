@@ -51,12 +51,18 @@ class HttpxModelInference(ModelInferencePort, HealthPort):
         *,
         connect_timeout: float = 2.0,
         read_timeout: float = 5.0,
+        internal_service_token: str | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._connect_timeout = connect_timeout
         self._read_timeout = read_timeout
         self._owns_client = client is None
+        default_headers: dict[str, str] | None = (
+            {"x-internal-token": internal_service_token}
+            if internal_service_token
+            else None
+        )
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(
                 connect=connect_timeout,
@@ -65,6 +71,7 @@ class HttpxModelInference(ModelInferencePort, HealthPort):
                 pool=1.0,
             ),
             base_url=self._base_url,
+            headers=default_headers,
         )
 
     async def aclose(self) -> None:

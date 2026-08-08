@@ -5,8 +5,14 @@
  * Uses native `fetch` (not `apiFetch`) because `apiFetch` is designed for
  * mixed client/server use with browser-friendly fallbacks, while RSC needs
  * direct control over Next.js `next` caching options and envelope parsing.
+ *
+ * When `INTERNAL_SERVICE_TOKEN` is configured in the server environment,
+ * outbound requests automatically include the `x-internal-token` header so
+ * the backend's inbound auth middleware (Phase B) accepts them. This file
+ * is RSC-only — it should never be imported from a Client Component.
  */
 
+import { INTERNAL_SERVICE_TOKEN } from "./api-config";
 import type { ApiEnvelope } from "./api";
 
 const DEFAULT_TIMEOUT = 10_000;
@@ -19,6 +25,31 @@ export interface ServerFetchOptions extends RequestInit {
 }
 
 /**
+ * Merge `x-internal-token` into the given headers when the server-side
+ * `INTERNAL_SERVICE_TOKEN` is set. Never modifies headers on the client
+ * (this file is RSC-only, but the guard is defensive).
+ */
+function withInternalToken(
+  headers: HeadersInit | undefined
+): HeadersInit | undefined {
+  if (!INTERNAL_SERVICE_TOKEN) return headers;
+  const merged: Record<string, string> = {};
+  if (headers) {
+    if (Array.isArray(headers)) {
+      for (const [k, v] of headers) merged[k] = v;
+    } else if (headers instanceof Headers) {
+      headers.forEach((v, k) => {
+        merged[k] = v;
+      });
+    } else {
+      Object.assign(merged, headers as Record<string, string>);
+    }
+  }
+  merged["x-internal-token"] = INTERNAL_SERVICE_TOKEN;
+  return merged;
+}
+
+/**
  * Fetch a JSON resource that follows the unified envelope and return the
  * unwrapped `data`. Throws on any failure.
  */
@@ -26,7 +57,7 @@ export async function serverFetch<T>(
   url: string,
   options: ServerFetchOptions = {}
 ): Promise<T> {
-  const { timeoutMs = DEFAULT_TIMEOUT, next, ...rest } = options;
+  const { timeoutMs = DEFAULT_TIMEOUT, next, headers, ...rest } = options;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -35,6 +66,7 @@ export async function serverFetch<T>(
   try {
     response = await fetch(url, {
       ...rest,
+      headers: withInternalToken(headers),
       next,
       signal: controller.signal,
     } as RequestInit & { next?: { revalidate?: number; tags?: string[] } });
@@ -89,6 +121,7 @@ export async function checkHealth(
 ): Promise<HealthStatus> {
   try {
     const response = await fetch(url, {
+      headers: withInternalToken(options.headers),
       next: { revalidate: 30 },
       ...options,
     } as RequestInit & { next?: { revalidate?: number } });

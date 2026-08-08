@@ -63,6 +63,12 @@ spring:
 ml:
   service:
     url: ${ML_SERVICE_URL:http://ml-container:8000}
+    token: ${INTERNAL_SERVICE_TOKEN:}
+
+# Internal service-to-service authentication token (dev defaults to empty)
+internal:
+  service:
+    token: ${INTERNAL_SERVICE_TOKEN:}
 
 # Actuator — more verbose in dev
 management:

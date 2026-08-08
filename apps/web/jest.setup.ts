@@ -16,4 +16,9 @@ if (typeof window.open === "undefined") {
   window.open = () => null;
 }
 
+// Provide a default INTERNAL_SERVICE_TOKEN for tests so server-side fetch
+// helpers can attach the x-internal-token header. Individual tests may
+// override this via process.env mutation in their own beforeEach.
+process.env.INTERNAL_SERVICE_TOKEN = "test-token";
+
 export {};

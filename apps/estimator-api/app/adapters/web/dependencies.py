@@ -60,13 +60,19 @@ def init_adapters(
     on the configured default.
     """
     url = ml_service_url or settings.ml_service_url
+    token = settings.internal_service_token or None
     container.model_inference = HttpxModelInference(
         base_url=url,
         connect_timeout=2.0,
         read_timeout=5.0,
+        internal_service_token=token,
     )
     container.history_repository = InMemoryHistoryRepository(capacity=history_capacity)
-    logger.info("adapters_initialized ml_service_url=%s", url)
+    logger.info(
+        "adapters_initialized ml_service_url=%s internal_token_configured=%s",
+        url,
+        bool(token),
+    )
 
 
 async def close_adapters() -> None:
