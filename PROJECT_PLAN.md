@@ -3,6 +3,13 @@
 > Multi-application Next.js portal hosting two independent apps (Property Value Estimator + Property Market Analysis) backed by FastAPI and Spring Boot, both integrating with the ML regression model container at `D:\DevDir\intw_prj\house_price_prediction`.
 >
 > This plan follows the agent workflow defined in `agent_rules.md §5`: mandatory planning → feature-by-feature development with testing gates → atomic conventional commits → production-ready runnable output.
+>
+> **Rule hierarchy** (read in order when in doubt):
+> 1. `agent_rules.md §8` — Bug Investigation & Debugging SOP (mandatory for any runtime bug)
+> 2. `agent_rules.md §9` — Testing Pyramid (three-layer verification: unit + integration + E2E)
+> 3. `agent_rules.md §10` — Next.js RSC Architecture Rules (single source of truth)
+> 4. `agent_rules.md §11` — Cross-Service Communication Audit Checklist
+> 5. This document (milestone-level execution)
 
 ---
 
@@ -87,8 +94,10 @@ property_multi_app_portal/
 │       ├── pom.xml
 │       └── Dockerfile
 │
-└── packages/                         # (optional) shared TS types
-    └── shared-types/
+├── logs/                             # Postmortem & bug investigation logs
+│
+├── packages/                         # (optional) shared TS types
+│   └── shared-types/
 ```
 
 ---
@@ -105,7 +114,9 @@ property_multi_app_portal/
 5. **Health endpoints** — FastAPI `/healthz`; Spring Boot `/actuator/health`.
 6. **Structured logs** — JSON with `timestamp, level, trace_id, service_name`.
 7. **Clean Architecture** — Domain has zero framework deps; ports define interfaces; adapters implement.
-8. **Testing gate** — a feature is NOT complete until its tests pass. No stubs, no `// TODO`.
+8. **Three-layer testing gate** — a feature is NOT complete until unit + integration + E2E tests pass (see §5 and §11). No stubs, no `// TODO`.
+9. **Runtime evidence required** — every feature ships only after `docker compose logs <service>` proves the expected request counts and no errors (see §11 Cross-Service Audit).
+10. **RSC single source of truth** — when `page.tsx` is RSC, the client component MUST NOT independently fetch the same data (see agent_rules.md §10).
 
 ### 3.1 Caching Strategy (end-to-end, decided)
 
@@ -127,12 +138,24 @@ Three-layer caching with explicit ownership boundaries to avoid double-cache ove
   - `/model-info`, default `/stats`: `public, max-age=60, stale-while-revalidate=300`
   - `/predict`, `/predict/batch`, `/what-if`: `no-store`
 - **Boundary rule:** frontend cache reduces HTTP calls; backend Caffeine reduces CPU. They compose, never overlap on the same concern.
+- **Cache invalidation must NOT cause duplicate requests.** When the user changes filters, only one round of RSC re-fetch should happen; client must dedup against RSC's served key (see agent_rules.md §10.4).
+
+### 3.2 Next.js Version Compatibility (mandatory pre-edit checklist)
+
+Before editing any `app/**/page.tsx` or `app/**/layout.tsx`, confirm:
+
+- [ ] `searchParams` is typed as `Promise<...>` and `await`ed (mandatory in Next.js 16+).
+- [ ] `params` is typed as `Promise<...>` and `await`ed (mandatory in Next.js 16+).
+- [ ] `cookies()`, `headers()` are awaited (mandatory in Next.js 16+).
+- [ ] After editing server-component files, `/app/.next` cache must be cleared before declaring the fix verified (see agent_rules.md §7.6).
+
+Run this checklist in PR review; failing items must be fixed before merge.
 
 ---
 
 ## 4. Phased Milestones
 
-Each phase = a verifiable deliverable with its own test gate and atomic commit(s).
+Each phase = a verifiable deliverable with its own test gate and atomic commit(s). **Every milestone MUST include runtime evidence (see §11)**, not just unit-test assertions.
 
 ### Phase 0 — Foundation & Scaffolding
 **Goal:** runnable empty skeleton with all four services wired.
@@ -198,6 +221,20 @@ Each phase = a verifiable deliverable with its own test gate and atomic commit(s
 | 4.6 | `/analytics/loading.tsx` + `/analytics/error.tsx` | — | RTL: boundary |
 | 4.7 | Commit `feat(analytics): add market analysis dashboard with what-if and export` | — | — |
 
+**Phase 4 — RSC Architecture Compliance (MANDATORY before §4.7 commit):**
+
+> All `/analytics/*` client components MUST obey agent_rules.md §10. Specifically:
+>
+> - When `page.tsx` is RSC and passes `initialStats` / `initialDataset` / `initialFilters` as props, the client component MUST dedup against those props and MUST NOT fire a second round of fetches when filters change via `router.replace` (see §10.4).
+> - Do NOT use `useRef` one-shot guards (`hasHydrated`, `isFirstRender`); use value-based comparison (`JSON.stringify(filters) === rscFiltersKey`).
+> - The fetch-dependency array MUST include `initialFilters` (or `rscFiltersKey` derived from it), not a frozen snapshot taken on first mount.
+>
+> Verification (REQUIRED before declaring §4 done):
+>
+> - [ ] `docker compose logs analytics-api` shows exactly 2 requests per user action (1× `/api/stats` + 1× `/api/dataset`), not 4.
+> - [ ] Run `scripts/test-analytics-dedup.ps1` and confirm pass.
+> - [ ] Run unit tests in `AnalyticsDashboard.test.tsx`: all pass, including Strict-Mode + filter-change cases.
+
 ### Phase 5 — App 2: Spring Boot Backend (Clean Architecture)
 **Goal:** production-ready Analytics API with caching and dataset stats.
 
@@ -213,6 +250,15 @@ Each phase = a verifiable deliverable with its own test gate and atomic commit(s
 | 5.8 | Dockerfile (multi-stage Maven) + compose wiring | `docker compose up analytics-api` healthy | — |
 | 5.9 | Commit `feat(analytics-api): add Spring Boot analytics with caching and ML integration` + `test(...)` | — | `mvn test` green |
 
+**Phase 5 — Cross-Service Audit (MANDATORY before §5.9 commit):**
+
+> Spring Boot endpoints are consumed by Next.js RSC. Per agent_rules.md §11, every shipped endpoint MUST be audited:
+>
+> - [ ] Backend logs `/api/*` GET count per RSC page request ≤ the minimum required data set (typically 2: stats + dataset).
+> - [ ] `docker compose exec web netstat -tn | grep 8002` shows ≤ 1 persistent keep-alive ESTABLISHED connection per backend service (not a fresh connection per request).
+> - [ ] RSC payload in browser Network tab confirms `initialStats`, `initialDataset`, `initialFilters` are present and consistent with the URL.
+> - [ ] All three test layers pass per §5 and §11.
+
 ### Phase 6 — Integration, Polish & Documentation
 **Goal:** end-to-end runnable system, demo-ready.
 
@@ -224,18 +270,33 @@ Each phase = a verifiable deliverable with its own test gate and atomic commit(s
 | 6.4 | Accessibility pass: keyboard nav, ARIA, contrast | Lighthouse a11y ≥ 90 | — |
 | 6.5 | Final commit `docs: add README and integration smoke test` | — | — |
 
+**Phase 6 — Runtime Evidence (MANDATORY before §6.5 commit):**
+
+> Per agent_rules.md §8.5 and §11, the smoke script MUST include not just HTTP-status checks but also **request-count assertions** derived from `docker compose logs`:
+>
+> - [ ] Trigger each user action N times; assert backend log shows exactly N×(expected endpoints per action).
+> - [ ] Assert no duplicate `/api/*` calls within a single RSC request.
+> - [ ] Assert no 5xx errors in any service log during the smoke run.
+
 ---
 
 ## 5. Testing Strategy
 
-| Layer | Tool | Coverage target |
-| --- | --- | --- |
-| Next.js | Jest + React Testing Library | components, hooks, validation, boundaries |
-| FastAPI | pytest + httpx AsyncClient + `pytest-asyncio` | domain, use cases, adapters, API (TestClient) |
-| Spring Boot | JUnit 5 + MockMvc + Mockito | domain, services, controllers, cache, ML fallback |
-| Integration | docker-compose + smoke script | end-to-end happy paths |
+| Layer | Tool | Coverage target | Reference |
+| --- | --- | --- | --- |
+| Next.js (unit) | Jest + React Testing Library | components, hooks, validation, boundaries, **Strict-Mode + filter-change dedup** | agent_rules.md §9.1 |
+| Next.js (integration) | Jest + MSW / real HTTP against running stack | RSC payloads, serverFetch behavior, cache hit/miss | agent_rules.md §9.1 |
+| FastAPI | pytest + httpx AsyncClient + `pytest-asyncio` | domain, use cases, adapters, API (TestClient) | — |
+| Spring Boot | JUnit 5 + MockMvc + Mockito | domain, services, controllers, cache, ML fallback | — |
+| E2E / Docker stack | `scripts/*.ps1` + docker compose logs assertion | full user journey + backend request count | agent_rules.md §9.1, §11 |
 
-Every feature commit MUST be accompanied by passing tests (rule §5.2).
+**Three-layer verification gate** (agent_rules.md §9.2):
+
+1. **Unit tests** — logic, validation, edge cases.
+2. **Integration tests** — real backend services via testcontainers or running compose stack.
+3. **E2E / runtime evidence** — user flow against live stack + `docker compose logs` showing expected request counts.
+
+Every feature commit MUST be accompanied by passing tests at all three applicable layers (rule §5.2). **"Tests pass" alone is NOT sufficient** — runtime evidence from `docker compose logs <service>` is required to declare a feature complete (rule §5.5 and §11).
 
 ---
 
@@ -245,6 +306,7 @@ Every feature commit MUST be accompanied by passing tests (rule §5.2).
 - Atomic commits per completed & tested feature.
 - Branch strategy: `main` for stable; feature branches `feat/<phase>-<topic>`.
 - Never commit `.env`, secrets, or build artifacts.
+- **Bug-fix commits MUST include**: (a) the regression test, (b) a `logs/<feature>-postmortem-YYYYMMDD.md` entry, (c) a reference to the §11 cross-service audit if applicable.
 
 ---
 
@@ -267,14 +329,69 @@ SERVER_PORT=8002
 
 ---
 
-## 8. External Dependencies & Risks
+## 8. Bug Investigation & Debugging SOP (REQUIRED READING)
 
-| Risk | Mitigation |
-| --- | --- |
-| ML container not running | Backends return structured `ML_SERVICE_UNAVAILABLE`; health endpoints reflect degraded state |
-| Network blocks Maven/pip | Use proxy per agent_rules.md §6 (`HTTP_PROXY=http://127.0.0.1:26406`) |
-| Dataset drift between ML model and analytics copy | Pin the CSV snapshot; document refresh procedure in README |
-| LocalStorage not available (SSR) | Guard with `typeof window !== 'undefined'` and fallback to in-memory |
+**Read agent_rules.md §8 in full before investigating any non-trivial runtime bug.** The SOP enforces a 5-step workflow that has repeatedly caught issues the unit tests miss:
+
+```
+Step 1: Reproduce & Capture Evidence
+  ↓
+Step 2: Trace the Request Path (Identify ALL data sources)
+  ↓
+Step 3: Form Hypotheses from EVIDENCE, Not Assumptions
+  ↓
+Step 4: Apply Minimal Fix + Verify in Runtime
+  ↓
+Step 5: Update Tests + Postmortem
+```
+
+### 8.1 Quick Reference — Evidence Commands (Windows / PowerShell)
+
+```powershell
+# Backend API calls — the source of truth
+docker compose logs analytics-api --since 5m | Select-String "GET"
+
+# Frontend compile errors and RSC handling
+docker compose logs web --since 5m
+
+# Outbound connections from web container
+docker compose exec web netstat -tn | Select-String "ESTABLISHED"
+
+# Endpoint health
+Invoke-WebRequest http://localhost:3000 -UseBasicParsing -TimeoutSec 10
+Invoke-WebRequest "http://localhost:3000/analytics?schoolRatingMin=9" -UseBasicParsing -TimeoutSec 15
+
+# Container status
+docker compose ps --format "table {{.Name}}`t{{.Status}}"
+```
+
+### 8.2 Critical Anti-Patterns (from agent_rules.md §8.7)
+
+NEVER do these — they were observed in failed fix attempts:
+
+- "I think this should fix it" — no evidence.
+- "Tests pass, so it's fixed" — tests with mocks hide integration bugs.
+- "The fix doesn't seem to take effect" — first rule out a stale compile cache (`docker compose exec web rm -rf /app/.next && docker compose restart web`).
+- Stacking new fixes on top of unverified fixes.
+- Stopping when "the user can see the data" — may be a symptom, not a root cause fix.
+
+### 8.3 Bug Postmortem Template
+
+Every bug fix MUST produce a `logs/<feature>-postmortem-YYYYMMDD.md` file. Sections:
+
+1. **Bug** — what the user reported (user-visible behavior).
+2. **Root cause** — with timestamp evidence from `docker compose logs`.
+3. **Why was it not caught earlier** — test gap, UAT gap, missing observability.
+4. **Fix** — file paths + diff summary + commit SHA.
+5. **Verification evidence** — `docker compose logs <service>` snippets before/after.
+6. **Lessons learned** — concrete rule changes (with diff to `agent_rules.md`).
+
+Reference postmortems:
+
+- `logs/analytics-dedup-fix-20260808.md` — analytics duplicate-request bug.
+- `logs/rsc-protocol-explained.md` — RSC protocol reference (background).
+- `logs/api-request-origination-verification.md` — proof that web container issues API calls.
+- `logs/bug-prevention-postmortem.md` — meta-analysis of why the bug lasted months.
 
 ---
 
@@ -289,8 +406,50 @@ SERVER_PORT=8002
 
 ## 10. Definition of Done
 
-- All 6 phases complete with every milestone's tests green.
+- All 6 phases complete with every milestone's tests green at **all three layers** (unit, integration, E2E).
 - `docker compose up` brings the full system healthy.
-- Smoke script passes end-to-end.
+- Smoke script passes end-to-end **with request-count assertions** (not just status checks).
 - `README.md` documents run + demo.
 - No `// TODO`, no stubs, no hardcoded secrets.
+- **Cross-Service Audit** (agent_rules.md §11) checklist passes for every shipped endpoint.
+- **No duplicate `/api/*` calls** per user action (verified in `docker compose logs <backend>`).
+- **All bug fixes ship with a postmortem** in `logs/`.
+
+---
+
+## 11. Cross-Service Communication Audit Checklist (REQUIRED before merge)
+
+Per agent_rules.md §11, every PR that crosses the RSC ↔ Backend boundary MUST pass this audit:
+
+- [ ] **Request count**: `docker compose logs <backend> | grep -E "GET /api/"` shows ≤ (expected endpoints per action) per user-triggered action. For analytics: ≤ 2 (1 stats + 1 dataset). For estimator: ≤ 1 (1 predict).
+- [ ] **No duplicate round-trips**: rapid filter changes / slider drags do not produce 2× the expected request count (no client fetch racing with RSC).
+- [ ] **Connection footprint**: `docker compose exec web netstat -tn | grep <backend-port>` shows ≤ 1 persistent keep-alive connection, NOT a fresh connection per request.
+- [ ] **RSC payload integrity**: in browser Network tab, the `?_rsc=...` response contains `initialStats` / `initialDataset` (or equivalent) AND `initialFilters` matches the URL.
+- [ ] **Three-layer tests pass**: unit + integration + runtime evidence all green per §5.
+- [ ] **Postmortem written**: if the audit fails and requires a fix, a postmortem per §8.3 must accompany the fix.
+
+### 11.1 When to Re-run the Audit
+
+- Before merging any change to `apps/web/src/app/**/page.tsx`.
+- Before merging any change to `apps/web/src/components/**/AnalyticsDashboard.tsx` (or similar data-driven client components).
+- Before merging any change to `apps/estimator-api/**/routers/` or `apps/analytics-api/**/controllers/`.
+- Before upgrading Next.js, FastAPI, or Spring Boot.
+- Whenever a user reports "duplicate requests" / "slow loading" / "weird errors".
+
+### 11.2 Audit Failure Resolution
+
+If the audit fails (e.g. > expected requests per action):
+
+1. **Do not patch over the symptom.** Follow agent_rules.md §8.5: re-capture evidence, re-hypothesize, fix the root cause.
+2. **Common root causes** (from agent_rules.md §10.4):
+   - RSC + Client-side useEffect both fetching the same data → enforce §10 dedup.
+   - `useRef` one-shot guard bypassed by React Strict Mode → switch to value-based comparison.
+   - Stale `useMemo` snapshot frozen on first mount → make it depend on `initialFilters` props.
+   - `router.replace` triggers RSC re-render AND client fetch in parallel → cancel the client fetch when RSC responds.
+3. **Add a regression test** per agent_rules.md §9.3 that asserts request count.
+
+---
+
+**Document changelog:**
+
+- 2026-08-08: Added §3.2 (Next.js version checklist), §4 Phase 4/5/6 runtime-evidence gates, §8 (Bug SOP summary), §11 (Cross-Service Audit). References to `agent_rules.md §8/§9/§10/§11` woven through the document. Reflects lessons learned from the 2026-08-08 analytics duplicate-request bug postmortem.
