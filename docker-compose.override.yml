@@ -48,11 +48,15 @@ services:
 
   # Web Portal — Development Mode with Hot Reload
   web:
+    # Use the development Dockerfile (single-stage, full devDependencies)
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile.dev
     # Mount Next.js source for hot reload
     volumes:
       - ./apps/web/src:/app/src
       - ./apps/web/public:/app/public
     # Use Next.js dev mode
-    command: npm run dev -- -p 3000
+    command: npx next dev -p 3000
     environment:
       NODE_ENV: development

@@ -262,7 +262,10 @@ function FeatureSlider({ meta, value, onChange }: FeatureSliderProps) {
   );
 }
 
-function formatFeatureValue(value: number, unit: string): string {
+function formatFeatureValue(value: number | undefined, unit: string): string {
+  if (value === undefined || value === null) {
+    return unit ? `0 ${unit}` : "0";
+  }
   const formatted = Number.isInteger(value) ? String(value) : value.toFixed(1);
   return unit ? `${formatted} ${unit}` : formatted;
 }

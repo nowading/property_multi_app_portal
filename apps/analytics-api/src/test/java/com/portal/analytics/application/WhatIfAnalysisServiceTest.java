@@ -62,7 +62,9 @@ class WhatIfAnalysisServiceTest {
     @DisplayName("computeDelta logic should be correct")
     void computeDeltaLogic() {
         MockModelInferencePort mockPort = new MockModelInferencePort();
-        WhatIfAnalysisService service = new WhatIfAnalysisService(mockPort);
+        BaselinePriceCacheService cacheService = new BaselinePriceCacheService(mockPort);
+        BaselinePredictionService baselineService = new BaselinePredictionService(cacheService);
+        WhatIfAnalysisService service = new WhatIfAnalysisService(mockPort, baselineService);
 
         PropertyFeatures modified = new PropertyFeatures(3000, 4, 2, 2000, 8000, 3, 8);
         PropertyFeatures baseline = PropertyFeatures.DEFAULT_BASELINE;
@@ -78,7 +80,9 @@ class WhatIfAnalysisServiceTest {
     @DisplayName("zero delta when features match baseline")
     void zeroDelta() {
         MockModelInferencePort mockPort = new MockModelInferencePort();
-        WhatIfAnalysisService service = new WhatIfAnalysisService(mockPort);
+        BaselinePriceCacheService cacheService = new BaselinePriceCacheService(mockPort);
+        BaselinePredictionService baselineService = new BaselinePredictionService(cacheService);
+        WhatIfAnalysisService service = new WhatIfAnalysisService(mockPort, baselineService);
 
         PropertyFeatures baseline = PropertyFeatures.DEFAULT_BASELINE;
 

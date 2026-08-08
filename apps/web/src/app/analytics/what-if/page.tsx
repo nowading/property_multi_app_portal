@@ -3,32 +3,12 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { WhatIfTool } from "@/components/analytics/WhatIfTool";
-import { serverFetch } from "@/lib/server-fetch";
-import { ANALYTICS_API_URL, ANALYTICS_API_PATHS } from "@/lib/api-config";
-import {
-  DEFAULT_WHAT_IF_FEATURES,
-  type WhatIfFeatures,
-} from "@/lib/schemas/analytics";
 
 export const metadata = {
   title: "What-If Analysis",
 };
 
 export default async function WhatIfPage() {
-  let initialFeatures: WhatIfFeatures = DEFAULT_WHAT_IF_FEATURES;
-
-  try {
-    const modelInfo = await serverFetch<{ features: WhatIfFeatures }>(
-      `${ANALYTICS_API_URL}${ANALYTICS_API_PATHS.MODEL_INFO}`,
-      { next: { revalidate: 300 } }
-    );
-    if (modelInfo?.features) {
-      initialFeatures = modelInfo.features;
-    }
-  } catch {
-    initialFeatures = DEFAULT_WHAT_IF_FEATURES;
-  }
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
@@ -48,7 +28,7 @@ export default async function WhatIfPage() {
       </div>
 
       <Suspense fallback={<p className="text-slate-500">Loading tool…</p>}>
-        <WhatIfTool initialFeatures={initialFeatures} />
+        <WhatIfTool />
       </Suspense>
     </div>
   );

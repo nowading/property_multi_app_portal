@@ -1,5 +1,7 @@
 package com.portal.analytics.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 /**
  * Optional filters for market statistics queries.
  *
@@ -25,6 +27,7 @@ public record StatsFilters(
         Double priceMax
 ) {
     /** Return true if no filters are applied (all null). */
+    @JsonIgnore
     public boolean isEmpty() {
         return bedroomsMin == null
                 && bedroomsMax == null

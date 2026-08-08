@@ -1,0 +1,34 @@
+# =============================================================================
+# Web Portal — Development Dockerfile (Hot-Reload)
+# =============================================================================
+# This Dockerfile is used exclusively for local development.
+# It installs all dependencies (including devDependencies) and keeps the
+# full source tree, enabling next dev with hot reload via volume mounts.
+#
+# Compared to the production Dockerfile:
+# - Single-stage (no multi-stage build)
+# - Installs ALL dependencies (devDependencies included)
+# - Does NOT run production build (next build)
+# - Source code is mounted from the host via docker-compose.override.yml
+# =============================================================================
+
+FROM node:22-alpine AS dev
+
+WORKDIR /app
+
+# Copy package files first for dependency caching
+COPY package.json package-lock.json ./
+
+# Install ALL dependencies (including devDependencies for dev mode)
+RUN npm ci
+
+# Copy project config files (tsconfig, next.config, postcss, eslint, etc.)
+# .dockerignore already excludes node_modules, .next, etc.
+COPY . .
+
+# Expose the application port
+EXPOSE 3000
+
+# Default command — overridden by docker-compose.override.yml
+# This allows the Dockerfile.dev to work standalone if needed
+CMD ["npm", "run", "dev"]

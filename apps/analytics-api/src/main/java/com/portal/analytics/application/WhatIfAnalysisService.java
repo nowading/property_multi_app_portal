@@ -18,9 +18,11 @@ import org.springframework.stereotype.Service;
 public class WhatIfAnalysisService {
 
     private final ModelInferencePort modelInferencePort;
+    private final BaselinePredictionService baselinePredictionService;
 
-    public WhatIfAnalysisService(ModelInferencePort modelInferencePort) {
+    public WhatIfAnalysisService(ModelInferencePort modelInferencePort, BaselinePredictionService baselinePredictionService) {
         this.modelInferencePort = modelInferencePort;
+        this.baselinePredictionService = baselinePredictionService;
     }
 
     /**
@@ -51,7 +53,7 @@ public class WhatIfAnalysisService {
 
     private WhatIfResult computeAnalysis(PropertyFeatures modified, PropertyFeatures baseline) {
         PredictionResult modifiedResult = modelInferencePort.predict(modified);
-        PredictionResult baselineResult = modelInferencePort.predict(baseline);
+        PredictionResult baselineResult = baselinePredictionService.getBaselinePrediction(baseline);
 
         double delta = modifiedResult.predictedPrice() - baselineResult.predictedPrice();
         double deltaPercent = baselineResult.predictedPrice() != 0
