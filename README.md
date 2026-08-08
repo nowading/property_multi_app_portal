@@ -270,15 +270,21 @@ curl http://localhost:8002/api/stats
 | `WEB_PORT`                      | Web Portal            | 门户端口                           | `3000`                  |
 | `ESTIMATOR_API_PORT`            | Estimator API         | API 端口（Docker 映射）              | `8001`                  |
 | `ANALYTICS_API_PORT`            | Analytics API         | API 端口（Docker 映射）              | `8002`                  |
+| `INTERNAL_SERVICE_TOKEN`        | Web / Estimator / Analytics / ML | 服务间共享令牌 (Phase B)        | 无（必须 32 字节 base64）    |
+| `ML_CA_BUNDLE_PATH`             | Estimator             | Python httpx 信任的 CA 证书 (Phase C) | `/app/certs/ca.crt`     |
+| `ML_TRUST_STORE_PATH`           | Analytics             | JDK HttpClient 信任的 PKCS#12 (Phase C) | `/app/certs/ca.p12`   |
+| `ML_TRUST_STORE_PASSWORD`       | Analytics             | PKCS#12 信任库密码                  | `changeit`              |
 
 ## 端口映射表
 
-| 端口     | 服务                        | 说明         |
-| ------ | ------------------------- | ---------- |
-| `3000` | Next.js Web Portal        | 统一前端门户     |
-| `8001` | FastAPI Estimator API     | 房产估价器后端    |
-| `8002` | Spring Boot Analytics API | 房产市场分析后端   |
-| `8000` | ML Container              | 房屋价格回归模型服务 |
+| 端口     | 服务                        | 说明         | 主机端口绑定 (Phase A 后)    |
+| ------ | ------------------------- | ---------- | --------------------- |
+| `3000` | Next.js Web Portal        | 统一前端门户     | 是                     |
+| `8001` | FastAPI Estimator API     | 房产估价器后端    | 否（仅容器内 DNS）           |
+| `8002` | Spring Boot Analytics API | 房产市场分析后端   | 否（仅容器内 DNS）           |
+| `8000` | ML Container              | 房屋价格回归模型服务 | 否（仅容器内 DNS，TLS-only）  |
+
+> 只有 `WEB_PORT` 暴露到宿主机。其它服务通过 `docker compose exec` 访问（详见 [Security](#security) 章节）。
 
 ## API 端点列表
 
@@ -408,6 +414,132 @@ docker compose up -d --build
 | Python 版本不兼容                    | Estimator API 要求 Python ≥ 3.12，可通过 `python --version` 验证                                                                               |
 | JDK 版本不兼容                       | Analytics API 要求 JDK 21，可通过 `java -version` 验证                                                                                         |
 | Docker Desktop 内存不足             | Spring Boot + JVM 至少需要 1GB，建议分配 2GB+ 内存给 Docker                                                                                        |
+
+***
+
+## Security
+
+本节说明三个阶段的安全加固：网络最小权限（Phase A）、共享内部令牌（Phase B）、后端↔ML 容器 mTLS（Phase C）。
+
+**为什么需要这三次加固：**
+
+- 在加固前，所有内部服务（ML / Estimator / Analytics / MySQL / Redis）都通过 `docker-compose.yml` 的 `ports:` 直接绑定到宿主机，攻击者只要能访问宿主机端口就能调用内部接口。
+- 同时，容器间调用完全没有认证与加密：任何加入同一 Docker 网络的容器都能伪造调用方读取预测结果或敏感统计。
+- 通过三次加固，我们把"主机端口攻击面"压缩到只剩 Web（`:3000`），并强制所有服务间调用携带共享令牌，且在网络层加密为 mTLS。
+
+### 三阶段加固总览
+
+| 阶段  | 名称            | 关闭的漏洞                                                                       |
+| --- | ------------- | --------------------------------------------------------------------------- |
+| A    | 网络最小权限        | 移除内部服务在宿主机上的 `ports:` 绑定，只保留 `expose:`（仅容器内 DNS 可达）                          |
+| B    | 共享内部令牌        | 在所有非健康检查的服务间调用上要求 `x-internal-token` 头，缺失/错误返回 401                              |
+| C    | mTLS 加密        | 后端↔ML 容器通信强制 HTTPS + 自签 CA 证书校验；无 CA bundle 的客户端 TLS 握手失败；明文端口不存在             |
+
+### 生成 `INTERNAL_SERVICE_TOKEN`
+
+该令牌是 32 字节 base64 随机串，仅存放在 `.env`（`.gitignore` 覆盖）中，由 `docker-compose.yml` 的 `environment` 注入到 Web / Estimator / Analytics / ML 四个容器：
+
+```bash
+# 生成强随机令牌
+openssl rand -base64 32
+```
+
+将输出粘贴到 `.env` 的 `INTERNAL_SERVICE_TOKEN=<value>` 行。所有四个容器的 `INTERNAL_SERVICE_TOKEN` 必须使用同一值，否则会因 401 失败。
+
+> Windows PowerShell 等价命令：
+> ```powershell
+> powershell -File scripts/generate-internal-token.ps1
+> ```
+
+### 生成 mTLS 证书
+
+mTLS 所需的 CA 与服务证书由 `scripts/generate_certs.py` 产生（PowerShell 包装：`scripts/generate-certs.ps1`）：
+
+```powershell
+# Windows
+powershell -File scripts/generate-certs.ps1
+```
+
+```bash
+# 跨平台 / Linux / macOS
+python scripts/generate_certs.py
+```
+
+脚本是**幂等**的：再次执行仅在证书距过期少于 30 天时才重新生成，避免破坏运行中的信任链。
+
+脚本会在仓库根目录的 `certs/` 下生成以下文件（整个目录已在 `.gitignore` 中）：
+
+| 文件                  | 用途                                                  |
+| ------------------- | --------------------------------------------------- |
+| `ca.crt`            | 自签 CA 证书（trust anchor，Estimator 用 PEM 形式加载）         |
+| `ca.key`            | CA 私钥（重新签发时复用）                                       |
+| `ca.p12`            | CA 的 PKCS#12 信任库（Analytics 用 JDK 加载，密码为 `changeit`） |
+| `ml-container.crt`  | ML 容器的服务端证书（SAN: `DNS:ml-container, DNS:localhost, IP:127.0.0.1`）  |
+| `ml-container.key`  | ML 容器服务端私钥（挂载到容器内供 Uvicorn 启动 TLS）                  |
+| `ml-container.p12`  | ML 容器 key+cert+CA 链的 PKCS#12 打包（备用）                |
+
+> `certs/` 已加入 `.gitignore`，永远不应提交到版本控制。
+
+### Debug 访问内部服务
+
+Phase A 之后，内部服务端口（8000 / 8001 / 8002 / 3306 / 6379）**不再绑定到宿主机**。所有调试访问都必须通过 `docker compose exec` 进入到对应容器内部，再调用容器内 localhost 或容器间 DNS 名。涉及 Phase B / C 的接口还需附带 `x-internal-token` 头。
+
+```bash
+# ML predict (HTTPS + token + CA bundle)
+docker exec estimator-api python3 -c "import urllib.request, ssl, json, os; ctx=ssl.create_default_context(cafile='/app/certs/ca.crt'); r=urllib.request.urlopen(urllib.request.Request('https://ml-container:8000/predict', data=json.dumps({'features':{'square_footage':1500,'bedrooms':3,'bathrooms':2,'year_built':2010,'lot_size':5000,'distance_to_city_center':5,'school_rating':7}}).encode(), headers={'x-internal-token':os.environ['INTERNAL_SERVICE_TOKEN'],'Content-Type':'application/json'}, method='POST'), context=ctx); print(r.read().decode())"
+
+# Analytics market stats (HTTP + token)
+docker exec analytics-api wget --ca-certificate=/app/certs/ca.crt -qO- --header="x-internal-token: $INTERNAL_SERVICE_TOKEN" http://analytics-api:8002/api/stats
+
+# ML health check (HTTPS, /health 免 token)
+docker exec estimator-api python3 -c "import urllib.request, ssl; ctx=ssl.create_default_context(cafile='/app/certs/ca.crt'); print(urllib.request.urlopen('https://ml-container:8000/health', context=ctx, timeout=4).status)"
+```
+
+> `/health`（以及 ML 容器的 `https://ml-container:8000/health`）是健康探针豁免端点，不要求 `x-internal-token` 头，方便健康检查流程。
+
+### 验证 Phase C 门禁
+
+`scripts/verify_phase_c.py` 在 estimator-api 容器内运行 6 个独立门禁，任何一个失败都意味着 mTLS / 令牌配置不正确：
+
+```bash
+docker exec -e INTERNAL_SERVICE_TOKEN=<value> estimator-api python3 /app/verify_phase_c.py
+```
+
+期望输出（`Passed: 6 / 6`）：
+
+```
+=== Phase C: mTLS + Token Verification ===
+  [PASS] HTTPS + correct token: status=200
+  [PASS] HTTPS + no token: status=401
+  [PASS] HTTPS + wrong token: status=401
+  [PASS] HTTPS + untrusted CA: TLS rejected (cert verify failed)
+  [PASS] /health exempt: status=200
+  [PASS] Plaintext refused: TLS handshake bytes (no HTTP listener)
+=== Summary ===
+Passed: 6 / 6
+All Phase C gates pass.
+```
+
+六个门禁分别覆盖：
+
+1. **HTTPS + 正确令牌** → 200（合法调用路径）
+2. **HTTPS + 无令牌** → 401（强制鉴权）
+3. **HTTPS + 错误令牌** → 401（不可猜测）
+4. **HTTPS + 不受信任的 CA** → 证书校验失败（隔离未授权客户端）
+5. **`/health` 免鉴权** → 200（健康探针不阻塞）
+6. **明文 HTTP** → 拒绝（容器只监听 TLS，明文握手被丢弃）
+
+### 安全相关环境变量汇总
+
+| 变量                          | 使用方                                  | 作用                                  |
+| --------------------------- | ----------------------------------- | ----------------------------------- |
+| `INTERNAL_SERVICE_TOKEN`    | Web / Estimator / Analytics / ML    | 服务间共享令牌 (Phase B)                    |
+| `ML_SERVICE_URL`            | Estimator / Analytics               | ML 容器地址（容器间 DNS，HTTPS 协议）           |
+| `ML_CA_BUNDLE_PATH`         | Estimator                           | Python `httpx` 信任的 CA 证书 (Phase C)   |
+| `ML_TRUST_STORE_PATH`       | Analytics                           | JDK `HttpClient` 信任的 PKCS#12 (Phase C) |
+| `ML_TRUST_STORE_PASSWORD`   | Analytics                           | PKCS#12 信任库密码（默认 `changeit`）          |
+
+完整环境变量表见上一节「环境变量表」。
 
 ***
 
