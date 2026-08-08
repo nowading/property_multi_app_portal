@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { BedroomBoxPlot } from "./BedroomBoxPlot";
@@ -86,14 +86,18 @@ export function AnalyticsDashboard({
   const searchParams = useSearchParams();
 
   const [filters, setFilters] = useState<StatsFilters>(() => {
-    if (initialFilters) return initialFilters;
+    // Prefer RSC-provided initialFilters to avoid hydration mismatch
+    if (initialFilters && Object.keys(initialFilters).length > 0) {
+      return initialFilters;
+    }
+    // Fallback: parse from URL searchParams (only if initialFilters is empty)
     if (typeof searchParams !== "undefined") {
-      return parseFiltersFromUrl(searchParams);
+      const parsed = parseFiltersFromUrl(searchParams);
+      if (Object.keys(parsed).length > 0) return parsed;
     }
     return DEFAULT_FILTERS;
   });
 
-  const isFirstDataLoad = useRef(true);
   const isFirstUrlUpdate = useRef(true);
 
   const [stats, setStats] = useState<MarketStats | null>(initialStats ?? null);
@@ -136,17 +140,81 @@ export function AnalyticsDashboard({
     []
   );
 
+  // ------------------------------------------------------------------
+  // Request deduplication strategy
+  // ------------------------------------------------------------------
+  // Two sources can trigger data fetching:
+  //   A) RSC re-render (router.replace → page.tsx serverFetch)
+  //      → new initialStats / initialDataset / initialFilters arrive as props
+  //   B) Client-side useEffect on [filters] change
+  //
+  // We rely on RSC as the primary data source:
+  //   1. When filters change, we update the URL (router.replace) which
+  //      triggers RSC to re-fetch.
+  //   2. The client effect waits for RSC: if rscFiltersKey matches
+  //      current filters AND RSC data exists → skip client fetch.
+  //   3. If filters differ from rscFiltersKey, RSC hasn't responded yet.
+  //      We return immediately and wait for the rscFiltersKey dep to
+  //      trigger a re-run when RSC delivers.
+  //   4. If filters match rscFiltersKey but RSC data is null (failure),
+  //      we fall back to a debounced client-side fetch.
+  //   5. lastFetchedKeyRef prevents duplicate fetches from Strict Mode
+  //      double-mount or repeated effect invocations.
+  // ------------------------------------------------------------------
+
+  /** Stable key of the latest RSC-provided filters (updated every render). */
+  const rscFiltersKey = useMemo(
+    () => JSON.stringify(initialFilters ?? {}),
+    [initialFilters]
+  );
+
+  /** Dedup guard: the last filters key for which we initiated a fetch. */
+  const lastFetchedKeyRef = useRef<string | null>(null);
+
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
 
+  // Sync state from RSC props when they change (e.g. after router.replace).
+  // This is the primary data path — RSC drives the UI.
   useEffect(() => {
-    // Skip fetch on first render if RSC provided initial data
-    if (isFirstDataLoad.current) {
-      isFirstDataLoad.current = false;
-      if (initialStats || initialDataset) {
-        return;
-      }
+    if (initialStats) {
+      setStats(initialStats);
+      setIsLoading(false);
+      setError(null);
     }
+    if (initialDataset) {
+      setDatasetRows(initialDataset.rows);
+      setDatasetTotal(initialDataset.total);
+      setDatasetError(null);
+    }
+  }, [initialStats, initialDataset]);
+
+  useEffect(() => {
+    const currentFiltersKey = JSON.stringify(filtersRef.current);
+
+    // Case 1: RSC has already provided data for these exact filters.
+    if (
+      currentFiltersKey === rscFiltersKey &&
+      (initialStats || initialDataset)
+    ) {
+      return;
+    }
+
+    // Case 2: filters changed but RSC hasn't responded yet.
+    // Wait for rscFiltersKey to catch up via a future re-render.
+    if (currentFiltersKey !== rscFiltersKey) {
+      return;
+    }
+
+    // Case 3: filters match RSC's initialFilters, but RSC data is
+    // null/missing (RSC fetch failed, or initial load without pre-fetch).
+    // Fall back to debounced client-side fetch.
+
+    // Dedup: skip if we already initiated a fetch for this exact key.
+    if (currentFiltersKey === lastFetchedKeyRef.current) {
+      return;
+    }
+    lastFetchedKeyRef.current = currentFiltersKey;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => {
@@ -157,7 +225,7 @@ export function AnalyticsDashboard({
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [filters, initialStats, initialDataset, loadData]);
+  }, [filters, initialStats, initialDataset, rscFiltersKey, loadData]);
 
   useEffect(() => {
     if (isFirstUrlUpdate.current) {
