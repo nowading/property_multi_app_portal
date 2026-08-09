@@ -1,10 +1,14 @@
+[English](./README.md) · [简体中文](./README.zh-CN.md)
+
+---
+
 # Property Multi-App Portal
 
-## 项目简介
+## Overview
 
-Property Multi-App Portal 是一个统一的 Next.js 多应用门户，集成了两个独立的房地产微应用：**房产估价器（Property Value Estimator）** 和 **房产市场分析（Property Market Analysis）**。两个应用各自拥有独立的后端服务（FastAPI 与 Spring Boot），均通过 REST API 与共享的 ML 回归模型容器通信，为用户提供单批量价格预测、历史查询、市场仪表盘、假设分析（What-If）与数据导出等完整功能。
+Property Multi-App Portal is a unified Next.js multi-application portal that integrates two independent real-estate microservices: **Property Value Estimator** and **Property Market Analysis**. Each application has its own dedicated backend service (FastAPI and Spring Boot), both communicating with a shared ML regression model container via REST APIs. Together they provide a complete feature set for users, including single/batch price predictions, history queries, a market dashboard, what-if analysis, and data export.
 
-## 架构图
+## Architecture Diagram
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -15,8 +19,8 @@ Property Multi-App Portal 是一个统一的 Next.js 多应用门户，集成了
     (App 1)    │                               │  (App 2)
                ▼                               ▼
 ┌─────────────────────────────┐    ┌──────────────────────────────┐
-│  FastAPI Estimator API       │    │  Spring Boot Analytics API   │
-│  Python 3.12 · Pydantic v2   │    │  Java 21 · Caffeine          │
+│  FastAPI Estimator API      │    │  Spring Boot Analytics API   │
+│  Python 3.12 · Pydantic v2  │    │  Java 21 · Caffeine          │
 │  httpx (async) · :8001      │    │  Resilience4j · :8002        │
 └──────────────┬──────────────┘    └──────────────┬───────────────┘
                │                                  │
@@ -31,77 +35,78 @@ Property Multi-App Portal 是一个统一的 Next.js 多应用门户，集成了
                  └────────────────────────────┘
 ```
 
-## 技术栈
+## Tech Stack
 
-| 服务                | 技术                                                                                                  |
-| ----------------- | --------------------------------------------------------------------------------------------------- |
-| **Web Portal**    | Next.js 16 (App Router) · TypeScript 5 · Tailwind CSS 4 · React 19 · Lucide · Recharts · Jest + RTL |
-| **Estimator API** | Python 3.12+ · FastAPI · Pydantic v2 · httpx (async) · pytest + pytest-asyncio                      |
-| **Analytics API** | Java 21 · Spring Boot 3.4.4 · Caffeine · Resilience4j · JUnit 5 + MockMvc                           |
-| **ML Container**  | FastAPI · scikit-learn · 线性回归模型                                                                     |
+| Service             | Tech                                                                                            |
+| ------------------- | ----------------------------------------------------------------------------------------------- |
+| **Web Portal**      | Next.js 16 (App Router) · TypeScript 5 · Tailwind CSS 4 · React 19 · Lucide · Recharts · Jest + RTL |
+| **Estimator API**   | Python 3.12+ · FastAPI · Pydantic v2 · httpx (async) · pytest + pytest-asyncio                |
+| **Analytics API**   | Java 21 · Spring Boot 3.4.4 · Caffeine · Resilience4j · JUnit 5 + MockMvc                      |
+| **ML Container**    | FastAPI · scikit-learn · Linear Regression Model                                                |
 
-## 目录结构
+## Directory Structure
 
 ```
 property_multi_app_portal/
-├── README.md                      # 项目文档
-├── PROJECT_PLAN.md                # 分阶段执行计划
-├── docker-compose.yml             # 4 服务编排
-├── .env.example                   # 环境变量模板
+├── README.md                      # Project documentation (English, default)
+├── README.zh-CN.md                # 项目文档（简体中文）
+├── PROJECT_PLAN.md                # Phased execution plan
+├── docker-compose.yml             # 4-service orchestration
+├── .env.example                   # Environment variable template
 ├── scripts/
-│   └── smoke.ps1                  # 烟雾测试脚本
+│   └── smoke.ps1                  # Smoke test script
 ├── apps/
-│   ├── web/                       # Next.js 统一门户 (:3000)
-│   │   ├── src/app/               # App Router 路由
-│   │   ├── src/components/        # 共享 UI 组件
-│   │   ├── src/lib/               # API 客户端 · 工具库
-│   │   └── src/hooks/             # 自定义 React Hooks
-│   ├── estimator-api/             # FastAPI 估价器后端 (:8001)
-│   │   ├── app/domain/            # 领域模型 · 端口接口
-│   │   ├── app/application/       # 用例编排
-│   │   ├── app/adapters/          # Web/ML/持久化适配器
-│   │   └── tests/                 # pytest 测试
-│   └── analytics-api/             # Spring Boot 分析后端 (:8002)
-│       ├── src/main/java/.../domain/      # 领域模型 · 端口接口
-│       ├── src/main/java/.../application/ # 服务层
-│       ├── src/main/java/.../adapters/    # Web/ML/持久化适配器
-│       └── src/test/java/.../             # JUnit 5 + MockMvc 测试
+│   ├── web/                       # Next.js unified portal (:3000)
+│   │   ├── src/app/               # App Router routes
+│   │   ├── src/components/        # Shared UI components
+│   │   ├── src/lib/               # API clients · utility libraries
+│   │   └── src/hooks/             # Custom React hooks
+│   ├── estimator-api/             # FastAPI estimator backend (:8001)
+│   │   ├── app/domain/            # Domain models · port interfaces
+│   │   ├── app/application/       # Use case orchestration
+│   │   ├── app/adapters/          # Web/ML/persistence adapters
+│   │   └── tests/                 # pytest tests
+│   └── analytics-api/             # Spring Boot analytics backend (:8002)
+│       ├── src/main/java/.../domain/      # Domain models · port interfaces
+│       ├── src/main/java/.../application/ # Service layer
+│       ├── src/main/java/.../adapters/    # Web/ML/persistence adapters
+│       └── src/test/java/.../             # JUnit 5 + MockMvc tests
 └── packages/
-    └── shared-types/              # 共享 TS 类型（可选）
+    └── shared-types/              # Shared TS types (optional)
 ```
 
-## 快速开始 — 本地开发模式
+## Quick Start — Local Development Mode
 
-### 前置依赖
+### Prerequisites
 
-| 工具             | 版本要求                                                          |
-| -------------- | ------------------------------------------------------------- |
-| Node.js        | **22 LTS**（不可用 v25+，Next.js 16 native bindings 与 ABI 141 不兼容） |
-| Python         | 3.12+                                                         |
-| JDK            | 21                                                            |
-| Maven          | 3.9+（Spring Boot 内置 `mvnw` 可替代）                               |
-| Docker         | 27+                                                           |
-| Docker Compose | 2+                                                            |
+| Tool          | Version                                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| Node.js       | **22 LTS** (v25+ is NOT supported — Next.js 16 native bindings are incompatible with ABI 141)         |
+| Python        | 3.12+                                                                                                |
+| JDK           | 21                                                                                                   |
+| Maven         | 3.9+ (Spring Boot bundles `mvnw` as an alternative)                                                  |
+| Docker        | 27+                                                                                                  |
+| Docker Compose| 2+                                                                                                   |
 
-> **注意**：ML 容器依赖外部仓库 `house_price_prediction`，需与本项目同级目录。
+> **Note**: The ML container depends on the external repo `house_price_prediction`, which must reside in a sibling directory of this project.
 >
-> **Node 版本切换**（Windows PowerShell）：
+> **Switching Node version** (Windows PowerShell):
 >
 > ```powershell
 > $env:PATH = "D:\DevEnv\node-v22.23.2-win-x64;" + $env:PATH
-> node --version  # 应输出 v22.x.x
+> node --version  # Should output v22.x.x
 > ```
 
-### 步骤一：启动 ML 容器
+### Step 1: Start the ML Container
 
 ```bash
-# 构建并启动 ML 容器（从 house_price_prediction 仓库）
+# Build and start the ML container (from the house_price_prediction repo)
 cd ../house_price_prediction
 docker build -t house-price-api .
 docker run -d --name house-price-ml -p 8000:8000 house-price-api
 ```
 
-### 步骤二：启动 Estimator API（FastAPI）
+### Step 2: Start the Estimator API (FastAPI)
 
 ```bash
 cd apps/estimator-api
@@ -109,16 +114,16 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
-### 步骤三：启动 Analytics API（Spring Boot）
+### Step 3: Start the Analytics API (Spring Boot)
 
 ```bash
 cd apps/analytics-api
 ./mvnw spring-boot:run        # Linux / macOS
-# 或
+# or
 .\mvnw.cmd spring-boot:run    # Windows
 ```
 
-### 步骤四：启动 Web Portal（Next.js）
+### Step 4: Start the Web Portal (Next.js)
 
 ```bash
 cd apps/web
@@ -126,334 +131,334 @@ npm install
 npm run dev
 ```
 
-访问 <http://localhost:3000> 打开门户页面。
+Open <http://localhost:3000> to access the portal.
 
-## Docker Compose 部署（推荐）
+## Docker Compose Deployment (Recommended)
 
-一键编排全部 4 个服务（ml-container → estimator-api / analytics-api → web），包含健康检查与依赖等待。
+One-command orchestration of all 4 services (ml-container → estimator-api / analytics-api → web), including health checks and dependency waiting.
 
-### 首次启动（构建镜像 + 启动）
+### First Startup (build images + start)
 
 ```bash
-# 构建所有镜像并后台启动（ml-container 首次构建需训练模型，约 1-2 分钟）
+# Build all images and start in the background (first build of ml-container trains the model, ~1-2 minutes)
 docker compose up -d --build
 ```
 
-### 日常操作
+### Day-to-Day Operations
 
 ```bash
-# 用已有镜像启动（不重新构建）
+# Start with existing images (no rebuild)
 docker compose up -d --no-build
 
-# 查看服务状态（等待所有容器变为 healthy）
+# View service status (wait for all containers to become healthy)
 docker compose ps
 
-# 查看所有服务实时日志
+# Tail logs from all services
 docker compose logs -f
 
-# 查看单个服务日志
+# Tail logs from a single service
 docker compose logs -f web
 docker compose logs -f estimator-api
 docker compose logs -f analytics-api
 docker compose logs -f ml-container
 
-# 停止并移除容器（保留镜像）
+# Stop and remove containers (keep images)
 docker compose down
 
-# 停止并移除容器 + 删除镜像（完全清理）
+# Stop and remove containers + delete images (full cleanup)
 docker compose down --rmi all
 ```
 
-### 重建单个服务
+### Rebuilding a Single Service
 
-当某个服务的代码或 Dockerfile 变更后，只需重建该服务：
+When code or the Dockerfile of a service changes, you only need to rebuild that service:
 
 ```bash
-# 重建 web 前端（例如修改了 Next.js 代码或 build args）
+# Rebuild the web frontend (e.g. after modifying Next.js code or build args)
 docker compose up -d --build web
 
-# 重建 estimator-api（例如修改了 FastAPI 代码）
+# Rebuild estimator-api (e.g. after modifying FastAPI code)
 docker compose up -d --build estimator-api
 
-# 重建 analytics-api（例如修改了 Spring Boot 代码）
+# Rebuild analytics-api (e.g. after modifying Spring Boot code)
 docker compose up -d --build analytics-api
 
-# 重建 ml-container（例如修改了 ML 模型代码）
+# Rebuild ml-container (e.g. after modifying the ML model code)
 docker compose up -d --build ml-container
 ```
 
-### 容器内调试
+### Debugging Inside Containers
 
 ```bash
-# 进入容器 shell
+# Enter a container shell
 docker compose exec web sh
 docker compose exec estimator-api bash
 docker compose exec analytics-api sh
 
-# 测试容器间网络连通性（Docker 内部网络）
+# Test inter-container network connectivity (Docker internal network)
 docker compose exec web wget -qO- http://estimator-api:8001/healthz
 docker compose exec web wget -qO- http://analytics-api:8002/actuator/health
 docker compose exec estimator-api curl -s http://ml-container:8000/health
 ```
 
-### 启动顺序与健康检查
+### Startup Order and Health Checks
 
-docker-compose.yml 定义了依赖链与健康检查门槛：
+`docker-compose.yml` defines the dependency chain and health-check gates:
 
 ```
 ml-container (healthy) ──► estimator-api (healthy) ──► web
                       └──► analytics-api (healthy) ──┘
 ```
 
-- `ml-container` 启动后需通过 `/health` 检查（start\_period: 60s）
-- `estimator-api` / `analytics-api` 等待 ML 容器 healthy 后才启动
-- `web` 等待两个后端 healthy 后才启动
+- `ml-container` must pass `/health` after startup (start_period: 60s)
+- `estimator-api` / `analytics-api` wait for the ML container to become healthy before starting
+- `web` waits for both backends to become healthy before starting
 
-### 验证服务可用性
+### Verifying Service Availability
 
-启动后执行以下命令一键验证所有端点：
+Run the following commands to verify all endpoints after startup:
 
 ```powershell
-# ML 容器健康
+# ML container health
 curl http://localhost:8000/health
-# 期望: {"status":"healthy","model_loaded":true}
+# Expected: {"status":"healthy","model_loaded":true}
 
-# Estimator API 健康（含 ML 下游状态）
+# Estimator API health (includes downstream ML status)
 curl http://localhost:8001/healthz
-# 期望: {"success":true,"data":{"status":"healthy","ml_healthy":true,...}}
+# Expected: {"success":true,"data":{"status":"healthy","ml_healthy":true,...}}
 
-# Analytics API 健康（Spring Actuator）
+# Analytics API health (Spring Actuator)
 curl http://localhost:8002/actuator/health
-# 期望: {"status":"UP","components":{"mlService":{"status":"UP"},...}}
+# Expected: {"status":"UP","components":{"mlService":{"status":"UP"},...}}
 
-# Web Portal 首页
+# Web portal homepage
 curl -o /dev/null -s -w "%{http_code}" http://localhost:3000/
-# 期望: 200
+# Expected: 200
 
-# Web 代理 → Estimator API
+# Web proxy → Estimator API
 curl http://localhost:3000/api/estimator/healthz
-# 期望: {"success":true,"data":{"status":"healthy",...}}
+# Expected: {"success":true,"data":{"status":"healthy",...}}
 
-# Web 代理 → Analytics API
+# Web proxy → Analytics API
 curl http://localhost:3000/api/analytics/actuator/health
-# 期望: {"status":"UP",...}
+# Expected: {"status":"UP",...}
 
-# 端到端预测（Estimator → ML）
+# End-to-end prediction (Estimator → ML)
 curl -X POST http://localhost:8001/predict `
   -H "Content-Type: application/json" `
   -d '{"features":{"square_footage":2000,"bedrooms":3,"bathrooms":2,"year_built":2010,"lot_size":5000,"distance_to_city_center":10,"school_rating":8}}'
-# 期望: {"success":true,"data":{"predicted_price":258775.97,...}}
+# Expected: {"success":true,"data":{"predicted_price":258775.97,...}}
 
-# 聚合市场统计（Analytics 内部数据集）
+# Aggregate market stats (Analytics internal dataset)
 curl http://localhost:8002/api/stats
-# 期望: {"success":true,"data":{"kpis":{"count":50,"avg_price":304760.0,...}}}
+# Expected: {"success":true,"data":{"kpis":{"count":50,"avg_price":304760.0,...}}}
 ```
 
-## 环境变量表
+## Environment Variables
 
-将 `.env.example` 复制为 `.env` 并根据环境调整：
+Copy `.env.example` to `.env` and adjust per environment:
 
-| 变量                              | 服务                    | 用途                             | 默认值                     |
-| ------------------------------- | --------------------- | ------------------------------ | ----------------------- |
-| `NEXT_PUBLIC_ESTIMATOR_API_URL` | Web Portal            | 客户端访问 Estimator API 地址         | `http://localhost:8001` |
-| `NEXT_PUBLIC_ANALYTICS_API_URL` | Web Portal            | 客户端访问 Analytics API 地址         | `http://localhost:8002` |
-| `ESTIMATOR_API_URL`             | Web Portal            | 服务端访问 Estimator API 地址         | `http://localhost:8001` |
-| `ANALYTICS_API_URL`             | Web Portal            | 服务端访问 Analytics API 地址         | `http://localhost:8002` |
-| `ML_SERVICE_URL`                | Estimator API         | ML 容器地址                        | `http://localhost:8000` |
-| `ESTIMATOR_API_HOST`            | Estimator API         | 监听地址                           | `0.0.0.0`               |
-| `ESTIMATOR_API_PORT`            | Estimator API         | 监听端口                           | `8001`                  |
-| `LOG_LEVEL`                     | Estimator / Analytics | 日志级别（DEBUG/INFO/WARNING/ERROR） | `INFO`                  |
-| `ML_SERVICE_URL`                | Analytics API         | ML 容器地址（Spring Boot）           | `http://localhost:8000` |
-| `SERVER_PORT`                   | Analytics API         | 服务端口                           | `8002`                  |
-| `JAVA_OPTS`                     | Analytics API         | JVM 参数                         | `-Xms256m -Xmx512m`     |
-| `ML_CONTAINER_PORT`             | ML Container          | ML 容器端口                        | `8000`                  |
-| `WEB_PORT`                      | Web Portal            | 门户端口                           | `3000`                  |
-| `ESTIMATOR_API_PORT`            | Estimator API         | API 端口（Docker 映射）              | `8001`                  |
-| `ANALYTICS_API_PORT`            | Analytics API         | API 端口（Docker 映射）              | `8002`                  |
-| `INTERNAL_SERVICE_TOKEN`        | Web / Estimator / Analytics / ML | 服务间共享令牌 (Phase B)        | 无（必须 32 字节 base64）    |
-| `ML_CA_BUNDLE_PATH`             | Estimator             | Python httpx 信任的 CA 证书 (Phase C) | `/app/certs/ca.crt`     |
-| `ML_TRUST_STORE_PATH`           | Analytics             | JDK HttpClient 信任的 PKCS#12 (Phase C) | `/app/certs/ca.p12`   |
-| `ML_TRUST_STORE_PASSWORD`       | Analytics             | PKCS#12 信任库密码                  | `changeit`              |
+| Variable                            | Service                                  | Purpose                                                  | Default                       |
+| ----------------------------------- | ---------------------------------------- | -------------------------------------------------------- | ----------------------------- |
+| `NEXT_PUBLIC_ESTIMATOR_API_URL`     | Web Portal                               | Client-side URL for Estimator API                        | `http://localhost:8001`       |
+| `NEXT_PUBLIC_ANALYTICS_API_URL`     | Web Portal                               | Client-side URL for Analytics API                        | `http://localhost:8002`       |
+| `ESTIMATOR_API_URL`                 | Web Portal                               | Server-side URL for Estimator API                        | `http://localhost:8001`       |
+| `ANALYTICS_API_URL`                 | Web Portal                               | Server-side URL for Analytics API                        | `http://localhost:8002`       |
+| `ML_SERVICE_URL`                    | Estimator API                            | ML container URL                                         | `http://localhost:8000`       |
+| `ESTIMATOR_API_HOST`                | Estimator API                            | Listen address                                           | `0.0.0.0`                     |
+| `ESTIMATOR_API_PORT`                | Estimator API                            | Listen port                                              | `8001`                        |
+| `LOG_LEVEL`                         | Estimator / Analytics                    | Log level (DEBUG/INFO/WARNING/ERROR)                      | `INFO`                        |
+| `ML_SERVICE_URL`                    | Analytics API                            | ML container URL (Spring Boot)                           | `http://localhost:8000`       |
+| `SERVER_PORT`                       | Analytics API                            | Service port                                             | `8002`                        |
+| `JAVA_OPTS`                         | Analytics API                            | JVM arguments                                            | `-Xms256m -Xmx512m`           |
+| `ML_CONTAINER_PORT`                 | ML Container                             | ML container port                                        | `8000`                        |
+| `WEB_PORT`                          | Web Portal                               | Portal port                                              | `3000`                        |
+| `ESTIMATOR_API_PORT`                | Estimator API                            | API port (Docker mapping)                                | `8001`                        |
+| `ANALYTICS_API_PORT`                | Analytics API                            | API port (Docker mapping)                                | `8002`                        |
+| `INTERNAL_SERVICE_TOKEN`            | Web / Estimator / Analytics / ML         | Shared internal service token (Phase B)                   | none (must be 32-byte base64) |
+| `ML_CA_BUNDLE_PATH`                 | Estimator                                | Python httpx trusted CA certificate (Phase C)             | `/app/certs/ca.crt`           |
+| `ML_TRUST_STORE_PATH`               | Analytics                                | JDK HttpClient trusted PKCS#12 (Phase C)                  | `/app/certs/ca.p12`           |
+| `ML_TRUST_STORE_PASSWORD`           | Analytics                                | PKCS#12 truststore password                              | `changeit`                    |
 
-## 端口映射表
+## Port Mapping
 
-| 端口     | 服务                        | 说明         | 主机端口绑定 (Phase A 后)    |
-| ------ | ------------------------- | ---------- | --------------------- |
-| `3000` | Next.js Web Portal        | 统一前端门户     | 是                     |
-| `8001` | FastAPI Estimator API     | 房产估价器后端    | 否（仅容器内 DNS）           |
-| `8002` | Spring Boot Analytics API | 房产市场分析后端   | 否（仅容器内 DNS）           |
-| `8000` | ML Container              | 房屋价格回归模型服务 | 否（仅容器内 DNS，TLS-only）  |
+| Port     | Service                       | Description                      | Host port binding (after Phase A) |
+| -------- | ----------------------------- | -------------------------------- | --------------------------------- |
+| `3000`   | Next.js Web Portal            | Unified frontend portal          | Yes                               |
+| `8001`   | FastAPI Estimator API         | Property value estimator backend | No (intra-cluster DNS only)       |
+| `8002`   | Spring Boot Analytics API     | Property market analysis backend | No (intra-cluster DNS only)       |
+| `8000`   | ML Container                  | House price regression model     | No (intra-cluster DNS only, TLS)  |
 
-> 只有 `WEB_PORT` 暴露到宿主机。其它服务通过 `docker compose exec` 访问（详见 [Security](#security) 章节）。
+> Only `WEB_PORT` is exposed to the host. Other services are accessed via `docker compose exec` (see the [Security](#security) section).
 
-## API 端点列表
+## API Endpoints
 
-### Estimator API（FastAPI，端口 8001）
+### Estimator API (FastAPI, port 8001)
 
-| 方法       | 端点                    | 说明              | 缓存                                       |
-| -------- | --------------------- | --------------- | ---------------------------------------- |
-| `GET`    | `/healthz`            | 健康检查（含 ML 下游状态） | —                                        |
-| `POST`   | `/predict`            | 单条房产价格预测        | `no-store`                               |
-| `POST`   | `/predict/batch`      | 批量房产价格预测        | `no-store`                               |
-| `GET`    | `/model-info`         | 获取 ML 模型元数据     | `max-age=60, stale-while-revalidate=300` |
-| `GET`    | `/history`            | 获取预测历史列表        | `no-store`                               |
-| `GET`    | `/history/{entry_id}` | 获取单条历史记录        | `no-store`                               |
-| `DELETE` | `/history/{entry_id}` | 删除单条历史记录        | `no-store`                               |
-| `DELETE` | `/history`            | 清空所有历史记录        | `no-store`                               |
+| Method    | Endpoint                | Description                              | Cache                                       |
+| --------- | ----------------------- | ---------------------------------------- | ------------------------------------------- |
+| `GET`     | `/healthz`              | Health check (includes downstream ML)    | —                                           |
+| `POST`    | `/predict`              | Single property price prediction         | `no-store`                                  |
+| `POST`    | `/predict/batch`        | Batch property price predictions         | `no-store`                                  |
+| `GET`     | `/model-info`           | Fetch ML model metadata                  | `max-age=60, stale-while-revalidate=300`    |
+| `GET`     | `/history`              | List prediction history                  | `no-store`                                  |
+| `GET`     | `/history/{entry_id}`   | Get a single history entry               | `no-store`                                  |
+| `DELETE`  | `/history/{entry_id}`   | Delete a single history entry            | `no-store`                                  |
+| `DELETE`  | `/history`              | Clear all history                        | `no-store`                                  |
 
-### Analytics API（Spring Boot，端口 8002）
+### Analytics API (Spring Boot, port 8002)
 
-| 方法       | 端点                             | 说明                           | 缓存                   |
-| -------- | ------------------------------ | ---------------------------- | -------------------- |
-| `GET`    | `/actuator/health`             | Spring Actuator 健康检查         | —                    |
-| `GET`    | `/api/stats`                   | 聚合市场统计（支持筛选参数）               | Caffeine · 10min TTL |
-| `POST`   | `/api/stats`                   | 聚合市场统计（JSON Body 筛选）         | Caffeine · 10min TTL |
-| `GET`    | `/api/dataset`                 | 分页数据集查询（`page`, `page_size`） | —                    |
-| `GET`    | `/api/model/info`              | ML 模型元数据                     | Caffeine · 60s TTL   |
-| `DELETE` | `/api/model/cache`             | 清除模型信息缓存                     | —                    |
-| `POST`   | `/api/what-if`                 | 假设分析（自定义基准）                  | Caffeine · 60s TTL   |
-| `POST`   | `/api/what-if/analyze-default` | 假设分析（默认基准）                   | Caffeine · 60s TTL   |
-| `GET`    | `/api/export/stats/csv`        | 市场统计 CSV 导出                  | —                    |
+| Method    | Endpoint                          | Description                                       | Cache                  |
+| --------- | --------------------------------- | ------------------------------------------------- | ---------------------- |
+| `GET`     | `/actuator/health`                | Spring Actuator health check                      | —                      |
+| `GET`     | `/api/stats`                      | Aggregate market stats (supports query filters)   | Caffeine · 10min TTL   |
+| `POST`    | `/api/stats`                      | Aggregate market stats (JSON body filters)        | Caffeine · 10min TTL   |
+| `GET`     | `/api/dataset`                    | Paginated dataset query (`page`, `page_size`)     | —                      |
+| `GET`     | `/api/model/info`                 | ML model metadata                                 | Caffeine · 60s TTL     |
+| `DELETE`  | `/api/model/cache`                | Clear model info cache                            | —                      |
+| `POST`    | `/api/what-if`                    | What-if analysis (custom baseline)                | Caffeine · 60s TTL     |
+| `POST`    | `/api/what-if/analyze-default`    | What-if analysis (default baseline)               | Caffeine · 60s TTL     |
+| `GET`     | `/api/export/stats/csv`           | Market stats CSV export                           | —                      |
 
-### ML Container（端口 8000）
+### ML Container (port 8000)
 
-| 方法     | 端点               | 说明        |
-| ------ | ---------------- | --------- |
-| `GET`  | `/health`        | ML 容器健康检查 |
-| `POST` | `/predict`       | 单条预测      |
-| `POST` | `/predict/batch` | 批量预测      |
-| `GET`  | `/model-info`    | 模型元数据     |
+| Method  | Endpoint          | Description                 |
+| ------- | ----------------- | --------------------------- |
+| `GET`   | `/health`         | ML container health check   |
+| `POST`  | `/predict`        | Single prediction           |
+| `POST`  | `/predict/batch`  | Batch prediction            |
+| `GET`   | `/model-info`     | Model metadata              |
 
-## 烟雾测试
+## Smoke Test
 
-使用 PowerShell 脚本一键验证所有服务端到端可用性：
+Use the PowerShell script to verify end-to-end service availability with one command:
 
 ```powershell
-# 确保所有服务已启动后执行
+# Run after all services are up
 .\scripts\smoke.ps1
 
-# 自定义 BaseUrl 或超时
+# Customize BaseUrl or timeout
 .\scripts\smoke.ps1 -BaseUrl "http://localhost" -TimeoutSec 15
 ```
 
-脚本自动测试以下场景：
+The script automatically tests the following scenarios:
 
-1. **服务健康检查** — Estimator API / Analytics API / Web Portal
-2. **单条预测** — `POST /predict`
-3. **历史查询** — `GET /history`
-4. **市场统计** — `GET /api/stats`
-5. **分页数据集** — `GET /api/dataset?page=1&page_size=10`
-6. **假设分析** — `POST /api/what-if`
+1. **Service health checks** — Estimator API / Analytics API / Web Portal
+2. **Single prediction** — `POST /predict`
+3. **History query** — `GET /history`
+4. **Market stats** — `GET /api/stats`
+5. **Paginated dataset** — `GET /api/dataset?page=1&page_size=10`
+6. **What-if analysis** — `POST /api/what-if`
 
-所有测试通过则退出码为 `0`，否则为 `1`。
+The script exits with code `0` on success, or `1` on failure.
 
-## 演示流程
+## Demo Flow
 
-### 准备工作
+### Preparation
 
 ```bash
-# 确保 ML 容器运行
+# Ensure the ML container is running
 curl http://localhost:8000/health
-# 应返回 {"status": "healthy", ...}
+# Should return {"status": "healthy", ...}
 
-# 启动所有服务
+# Start all services
 docker compose up -d --build
 ```
 
-### 演示步骤
+### Demo Steps
 
-**Step 1：访问门户首页**
+**Step 1: Visit the Portal Home**
 
-- 打开 <http://localhost:3000>
-- 查看门户概览与服务状态卡片
+- Open <http://localhost:3000>
+- View the portal overview and service status cards
 
-**Step 2：房产估价器 — 单条预测**
+**Step 2: Property Estimator — Single Prediction**
 
-- 导航至 `/estimator`
-- 填写 7 个特征字段（建筑面积、卧室、浴室、建造年份、地块大小、距市中心距离、学区评分）
-- 提交并查看预测价格与特征贡献图表
+- Navigate to `/estimator`
+- Fill in the 7 feature fields (square footage, bedrooms, bathrooms, year built, lot size, distance to city center, school rating)
+- Submit and view the predicted price plus feature-contribution chart
 
-**Step 3：房产估价器 — 历史与对比**
+**Step 3: Property Estimator — History & Comparison**
 
-- 导航至 `/estimator/history` 查看历史记录
-- 导航至 `/estimator/compare` 选择 2–4 条记录进行对比
+- Navigate to `/estimator/history` to view history records
+- Navigate to `/estimator/compare` to select 2–4 records for comparison
 
-**Step 4：市场分析仪表盘**
+**Step 4: Market Analysis Dashboard**
 
-- 导航至 `/analytics`
-- 查看 KPI 卡片（均价、中位数、最高/最低价）
-- 与筛选器交互（卧室数、建造年份、距离、学区评分）
-- 查看价格直方图、散点图与箱线图
+- Navigate to `/analytics`
+- View the KPI cards (average, median, max/min prices)
+- Interact with filters (bedrooms, year built, distance, school rating)
+- View price histograms, scatter plots, and box plots
 
-**Step 5：假设分析**
+**Step 5: What-If Analysis**
 
-- 导航至 `/analytics/what-if`
-- 拖动滑块调整特征值，实时查看预测价格变化
+- Navigate to `/analytics/what-if`
+- Drag the sliders to adjust feature values and watch the predicted price change in real time
 
-**Step 6：数据导出**
+**Step 6: Data Export**
 
-- 在仪表盘使用「导出」功能，下载 CSV 格式的市场统计报告
+- Use the "Export" feature on the dashboard to download a CSV market-stats report
 
-**Step 7：运行烟雾测试**
+**Step 7: Run the Smoke Test**
 
 ```powershell
 .\scripts\smoke.ps1
 ```
 
-## 故障排除
+## Troubleshooting
 
-| 问题                              | 解决方案                                                                                                                                   |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| ML 容器连接超时（`ML_SERVICE_TIMEOUT`） | 确认 `house_price_prediction` 容器已启动且端口 8000 可达。Docker 环境下检查网络连接：`docker compose exec estimator-api curl http://ml-container:8000/health` |
-| Estimator API 返回 `degraded` 状态  | 表示 API 自身正常但 ML 下游不可用，检查 ML 容器健康情况                                                                                                     |
-| Spring Boot 启动失败（端口冲突）          | 修改 `.env` 中 `ANALYTICS_API_PORT` 或 `SERVER_PORT`，确保端口 8002 未被占用                                                                        |
-| Next.js 页面空白或 API 调用失败          | 确认 `.env` 中 `NEXT_PUBLIC_*` 变量指向正确端口。开发模式默认 `localhost`，Docker 模式使用容器名                                                                 |
-| Maven 依赖下载失败                    | 检查网络连接，必要时在 `mvnw` 中配置代理或使用本地 Maven 仓库缓存                                                                                               |
-| Docker Compose 健康检查失败           | 首次启动 ML 容器需要较长加载时间，`docker-compose.yml` 已配置 60s `start_period`。可手动检查：`docker compose logs ml-container`                                |
-| `house_price_prediction` 目录不存在  | ML 容器需从同级目录 `../house_price_prediction` 构建，确保该仓库已克隆                                                                                    |
-| Python 版本不兼容                    | Estimator API 要求 Python ≥ 3.12，可通过 `python --version` 验证                                                                               |
-| JDK 版本不兼容                       | Analytics API 要求 JDK 21，可通过 `java -version` 验证                                                                                         |
-| Docker Desktop 内存不足             | Spring Boot + JVM 至少需要 1GB，建议分配 2GB+ 内存给 Docker                                                                                        |
+| Issue                                        | Solution                                                                                                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ML container connection timeout (`ML_SERVICE_TIMEOUT`) | Confirm the `house_price_prediction` container is running and port 8000 is reachable. In Docker, check connectivity: `docker compose exec estimator-api curl http://ml-container:8000/health` |
+| Estimator API returns `degraded` status      | Means the API itself is healthy but the ML downstream is unavailable; check ML container health                                                                            |
+| Spring Boot fails to start (port conflict)   | Modify `ANALYTICS_API_PORT` or `SERVER_PORT` in `.env` to ensure port 8002 is not in use                                                                                  |
+| Next.js page is blank or API calls fail      | Ensure `NEXT_PUBLIC_*` vars in `.env` point to the correct ports. Dev mode defaults to `localhost`; Docker mode uses container names                              |
+| Maven dependency download fails              | Check network connectivity; configure a proxy in `mvnw` or use the local Maven repository cache if needed                                                                |
+| Docker Compose health check fails            | First ML container startup takes longer; `docker-compose.yml` already configures a 60s `start_period`. Inspect manually: `docker compose logs ml-container`           |
+| `house_price_prediction` directory missing   | The ML container must be built from the sibling dir `../house_price_prediction`; ensure that repo is cloned                                                              |
+| Incompatible Python version                  | Estimator API requires Python ≥ 3.12; verify with `python --version`                                                                                                    |
+| Incompatible JDK version                     | Analytics API requires JDK 21; verify with `java -version`                                                                                                              |
+| Insufficient Docker Desktop memory           | Spring Boot + JVM needs at least 1 GB; allocate 2 GB+ to Docker                                                                                                         |
 
 ***
 
 ## Security
 
-本节说明三个阶段的安全加固：网络最小权限（Phase A）、共享内部令牌（Phase B）、后端↔ML 容器 mTLS（Phase C）。
+This section describes the three-phase hardening: network least-privilege (Phase A), shared internal token (Phase B), and backend↔ML container mTLS (Phase C).
 
-**为什么需要这三次加固：**
+**Why three rounds of hardening are necessary:**
 
-- 在加固前，所有内部服务（ML / Estimator / Analytics / MySQL / Redis）都通过 `docker-compose.yml` 的 `ports:` 直接绑定到宿主机，攻击者只要能访问宿主机端口就能调用内部接口。
-- 同时，容器间调用完全没有认证与加密：任何加入同一 Docker 网络的容器都能伪造调用方读取预测结果或敏感统计。
-- 通过三次加固，我们把"主机端口攻击面"压缩到只剩 Web（`:3000`），并强制所有服务间调用携带共享令牌，且在网络层加密为 mTLS。
+- Before hardening, all internal services (ML / Estimator / Analytics / MySQL / Redis) were bound directly to the host via the `ports:` field of `docker-compose.yml`. An attacker who could reach a host port could call an internal interface.
+- At the same time, inter-container calls had no authentication or encryption: any container that joined the same Docker network could impersonate callers and read prediction results or sensitive stats.
+- After these three rounds of hardening, the "host-port attack surface" is reduced to only Web (`:3000`); all inter-service calls must carry a shared token; and the wire-level traffic is encrypted via mTLS.
 
-### 三阶段加固总览
+### Three-Phase Hardening Overview
 
-| 阶段  | 名称            | 关闭的漏洞                                                                       |
-| --- | ------------- | --------------------------------------------------------------------------- |
-| A    | 网络最小权限        | 移除内部服务在宿主机上的 `ports:` 绑定，只保留 `expose:`（仅容器内 DNS 可达）                          |
-| B    | 共享内部令牌        | 在所有非健康检查的服务间调用上要求 `x-internal-token` 头，缺失/错误返回 401                              |
-| C    | mTLS 加密        | 后端↔ML 容器通信强制 HTTPS + 自签 CA 证书校验；无 CA bundle 的客户端 TLS 握手失败；明文端口不存在             |
+| Phase | Name                  | Vulnerability Closed                                                                                  |
+| ----- | --------------------- | ----------------------------------------------------------------------------------------------------- |
+| A     | Network least-privilege | Remove `ports:` bindings from internal services on the host, keep only `expose:` (intra-cluster DNS only) |
+| B     | Shared internal token | Require `x-internal-token` header on all non-health-check inter-service calls; missing/wrong → 401      |
+| C     | mTLS encryption        | Backend↔ML traffic forced over HTTPS with a self-signed CA; clients without the CA bundle fail the TLS handshake; plaintext ports are removed |
 
-### 生成 `INTERNAL_SERVICE_TOKEN`
+### Generating `INTERNAL_SERVICE_TOKEN`
 
-该令牌是 32 字节 base64 随机串，仅存放在 `.env`（`.gitignore` 覆盖）中，由 `docker-compose.yml` 的 `environment` 注入到 Web / Estimator / Analytics / ML 四个容器：
+This token is a 32-byte base64 random string, stored only in `.env` (covered by `.gitignore`), and injected into the Web / Estimator / Analytics / ML containers by the `environment` section of `docker-compose.yml`:
 
 ```bash
-# 生成强随机令牌
+# Generate a strong random token
 openssl rand -base64 32
 ```
 
-将输出粘贴到 `.env` 的 `INTERNAL_SERVICE_TOKEN=<value>` 行。所有四个容器的 `INTERNAL_SERVICE_TOKEN` 必须使用同一值，否则会因 401 失败。
+Paste the output into the `INTERNAL_SERVICE_TOKEN=<value>` line in `.env`. All four containers MUST use the same `INTERNAL_SERVICE_TOKEN` value, otherwise requests will fail with 401.
 
-> Windows PowerShell 等价命令：
+> Windows PowerShell equivalent:
 > ```powershell
 > powershell -File scripts/generate-internal-token.ps1
 > ```
 
-### 生成 mTLS 证书
+### Generating mTLS Certificates
 
-mTLS 所需的 CA 与服务证书由 `scripts/generate_certs.py` 产生（PowerShell 包装：`scripts/generate-certs.ps1`）：
+The CA and service certificates required for mTLS are generated by `scripts/generate_certs.py` (PowerShell wrapper: `scripts/generate-certs.ps1`):
 
 ```powershell
 # Windows
@@ -461,28 +466,28 @@ powershell -File scripts/generate-certs.ps1
 ```
 
 ```bash
-# 跨平台 / Linux / macOS
+# Cross-platform / Linux / macOS
 python scripts/generate_certs.py
 ```
 
-脚本是**幂等**的：再次执行仅在证书距过期少于 30 天时才重新生成，避免破坏运行中的信任链。
+The script is **idempotent**: re-running it only regenerates certificates that are within 30 days of expiry, so it won't break a running trust chain.
 
-脚本会在仓库根目录的 `certs/` 下生成以下文件（整个目录已在 `.gitignore` 中）：
+The script writes the following files under `certs/` at the repo root (the entire directory is in `.gitignore`):
 
-| 文件                  | 用途                                                  |
-| ------------------- | --------------------------------------------------- |
-| `ca.crt`            | 自签 CA 证书（trust anchor，Estimator 用 PEM 形式加载）         |
-| `ca.key`            | CA 私钥（重新签发时复用）                                       |
-| `ca.p12`            | CA 的 PKCS#12 信任库（Analytics 用 JDK 加载，密码为 `changeit`） |
-| `ml-container.crt`  | ML 容器的服务端证书（SAN: `DNS:ml-container, DNS:localhost, IP:127.0.0.1`）  |
-| `ml-container.key`  | ML 容器服务端私钥（挂载到容器内供 Uvicorn 启动 TLS）                  |
-| `ml-container.p12`  | ML 容器 key+cert+CA 链的 PKCS#12 打包（备用）                |
+| File                  | Purpose                                                                                                                |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `ca.crt`              | Self-signed CA certificate (trust anchor; loaded by Estimator in PEM form)                                              |
+| `ca.key`              | CA private key (reused when re-issuing)                                                                                |
+| `ca.p12`              | CA in PKCS#12 form (loaded by Analytics JDK; password `changeit`)                                                      |
+| `ml-container.crt`    | ML container server certificate (SAN: `DNS:ml-container, DNS:localhost, IP:127.0.0.1`)                                  |
+| `ml-container.key`    | ML container server private key (mounted into the container for Uvicorn to start TLS)                                   |
+| `ml-container.p12`    | ML container key+cert+CA chain bundled into PKCS#12 (optional backup)                                                  |
 
-> `certs/` 已加入 `.gitignore`，永远不应提交到版本控制。
+> `certs/` is in `.gitignore` and must never be committed to version control.
 
-### Debug 访问内部服务
+### Debug Access to Internal Services
 
-Phase A 之后，内部服务端口（8000 / 8001 / 8002 / 3306 / 6379）**不再绑定到宿主机**。所有调试访问都必须通过 `docker compose exec` 进入到对应容器内部，再调用容器内 localhost 或容器间 DNS 名。涉及 Phase B / C 的接口还需附带 `x-internal-token` 头。
+After Phase A, internal service ports (8000 / 8001 / 8002 / 3306 / 6379) are **no longer bound to the host**. All debug access must go through `docker compose exec` to enter the container, then call the intra-container localhost or other containers via their DNS names. Endpoints covered by Phase B / C also require the `x-internal-token` header.
 
 ```bash
 # ML predict (HTTPS + token + CA bundle)
@@ -491,21 +496,21 @@ docker exec estimator-api python3 -c "import urllib.request, ssl, json, os; ctx=
 # Analytics market stats (HTTP + token)
 docker exec analytics-api wget --ca-certificate=/app/certs/ca.crt -qO- --header="x-internal-token: $INTERNAL_SERVICE_TOKEN" http://analytics-api:8002/api/stats
 
-# ML health check (HTTPS, /health 免 token)
+# ML health check (HTTPS, /health is token-exempt)
 docker exec estimator-api python3 -c "import urllib.request, ssl; ctx=ssl.create_default_context(cafile='/app/certs/ca.crt'); print(urllib.request.urlopen('https://ml-container:8000/health', context=ctx, timeout=4).status)"
 ```
 
-> `/health`（以及 ML 容器的 `https://ml-container:8000/health`）是健康探针豁免端点，不要求 `x-internal-token` 头，方便健康检查流程。
+> `/health` (and the ML container's `https://ml-container:8000/health`) is a health-probe exemption endpoint and does NOT require the `x-internal-token` header, so health-check flows stay unblocked.
 
-### 验证 Phase C 门禁
+### Verifying the Phase C Gate
 
-`scripts/verify_phase_c.py` 在 estimator-api 容器内运行 6 个独立门禁，任何一个失败都意味着 mTLS / 令牌配置不正确：
+`scripts/verify_phase_c.py` runs 6 independent gates inside the estimator-api container; any failure means the mTLS / token configuration is incorrect:
 
 ```bash
 docker exec -e INTERNAL_SERVICE_TOKEN=<value> estimator-api python3 /app/verify_phase_c.py
 ```
 
-期望输出（`Passed: 6 / 6`）：
+Expected output (`Passed: 6 / 6`):
 
 ```
 === Phase C: mTLS + Token Verification ===
@@ -520,26 +525,26 @@ Passed: 6 / 6
 All Phase C gates pass.
 ```
 
-六个门禁分别覆盖：
+The six gates respectively cover:
 
-1. **HTTPS + 正确令牌** → 200（合法调用路径）
-2. **HTTPS + 无令牌** → 401（强制鉴权）
-3. **HTTPS + 错误令牌** → 401（不可猜测）
-4. **HTTPS + 不受信任的 CA** → 证书校验失败（隔离未授权客户端）
-5. **`/health` 免鉴权** → 200（健康探针不阻塞）
-6. **明文 HTTP** → 拒绝（容器只监听 TLS，明文握手被丢弃）
+1. **HTTPS + correct token** → 200 (legitimate call path)
+2. **HTTPS + no token** → 401 (mandatory auth)
+3. **HTTPS + wrong token** → 401 (unguessable)
+4. **HTTPS + untrusted CA** → certificate verification failure (isolating unauthorized clients)
+5. **`/health` exempt** → 200 (health probes do not block)
+6. **Plaintext HTTP** → refused (container only listens on TLS; plaintext handshakes are dropped)
 
-### 安全相关环境变量汇总
+### Security-Related Environment Variables
 
-| 变量                          | 使用方                                  | 作用                                  |
-| --------------------------- | ----------------------------------- | ----------------------------------- |
-| `INTERNAL_SERVICE_TOKEN`    | Web / Estimator / Analytics / ML    | 服务间共享令牌 (Phase B)                    |
-| `ML_SERVICE_URL`            | Estimator / Analytics               | ML 容器地址（容器间 DNS，HTTPS 协议）           |
-| `ML_CA_BUNDLE_PATH`         | Estimator                           | Python `httpx` 信任的 CA 证书 (Phase C)   |
-| `ML_TRUST_STORE_PATH`       | Analytics                           | JDK `HttpClient` 信任的 PKCS#12 (Phase C) |
-| `ML_TRUST_STORE_PASSWORD`   | Analytics                           | PKCS#12 信任库密码（默认 `changeit`）          |
+| Variable                    | Used By                               | Purpose                                                  |
+| --------------------------- | ------------------------------------- | -------------------------------------------------------- |
+| `INTERNAL_SERVICE_TOKEN`    | Web / Estimator / Analytics / ML      | Shared internal service token (Phase B)                  |
+| `ML_SERVICE_URL`            | Estimator / Analytics                 | ML container URL (intra-cluster DNS, HTTPS)              |
+| `ML_CA_BUNDLE_PATH`         | Estimator                             | Python `httpx` trusted CA certificate (Phase C)          |
+| `ML_TRUST_STORE_PATH`       | Analytics                             | JDK `HttpClient` trusted PKCS#12 (Phase C)               |
+| `ML_TRUST_STORE_PASSWORD`   | Analytics                             | PKCS#12 truststore password (default `changeit`)         |
 
-完整环境变量表见上一节「环境变量表」。
+For the full environment variable list, see the "Environment Variables" section above.
 
 ***
 
