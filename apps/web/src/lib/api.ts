@@ -7,10 +7,17 @@
  *   network fails, or when the request times out.
  * - Supports Next.js RSC fetch caching via the `next` option
  *   (e.g. `{ next: { revalidate: 300 } }`).
+ * - When running on the server (RSC) and `INTERNAL_SERVICE_TOKEN` is
+ *   configured, automatically attaches the `x-internal-token` header so
+ *   the backend's inbound auth middleware accepts the request. Browser
+ *   calls are NOT modified (browsers can't reach internal services
+ *   after Phase A, so the header is irrelevant for the client).
  *
  * Used by both React Server Components (direct call) and the `useApi` hook
  * (client side).
  */
+
+import { INTERNAL_SERVICE_TOKEN } from "./api-config";
 
 export interface ApiEnvelope<T> {
   success: boolean;
@@ -61,14 +68,29 @@ export async function apiFetch<T>(
   url: string,
   options: ApiFetchOptions = {}
 ): Promise<T> {
-  const { timeoutMs = 10_000, ...rest } = options;
+  const { timeoutMs = 10_000, headers: optionHeaders, ...rest } = options;
+
+  // Server-side: attach the shared internal service token so the backend's
+  // inbound auth middleware accepts the request. Browser calls are left
+  // untouched (browsers cannot reach internal services after Phase A).
+  const isServer = typeof window === "undefined";
+  const headers: Record<string, string> = {
+    ...(optionHeaders as Record<string, string> | undefined),
+  };
+  if (isServer && INTERNAL_SERVICE_TOKEN) {
+    headers["x-internal-token"] = INTERNAL_SERVICE_TOKEN;
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let response: Response;
   try {
-    response = await fetch(url, { ...rest, signal: controller.signal });
+    response = await fetch(url, {
+      ...rest,
+      headers,
+      signal: controller.signal,
+    });
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
       throw new ApiError(

@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.portal.analytics.domain.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import javax.net.ssl.SSLContext;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -25,6 +27,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * (Connect: 2s, Read: 5s). Implements a thread-safe circuit breaker.
  * When the ML service is unavailable, the client throws {@link DomainException}
  * instead of returning fallback data.
+ *
+ * <p>Phase C: when {@code ml.service.trust-store-path} is set, the HTTP
+ * client is built with a custom {@link SSLContext} so the self-signed
+ * ML certificate is trusted.
  */
 @Component
 public class MlModelClient implements ModelInferencePort {
@@ -38,6 +44,7 @@ public class MlModelClient implements ModelInferencePort {
     private static final Duration CIRCUIT_OPEN_DURATION = Duration.ofSeconds(30);
 
     private final String mlServiceUrl;
+    private final String internalServiceToken;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
@@ -50,17 +57,56 @@ public class MlModelClient implements ModelInferencePort {
         CLOSED, OPEN, HALF_OPEN
     }
 
+    @Autowired
     public MlModelClient(
             @Value("${ml.service.url:http://localhost:8000}") String mlServiceUrl,
+            @Value("${ml.service.token:}") String internalServiceToken,
+            @Value("${ml.service.trust-store-path:}") String trustStorePath,
+            @Value("${ml.service.trust-store-password:}") String trustStorePassword,
             ObjectMapper objectMapper
     ) {
         this.mlServiceUrl = mlServiceUrl;
+        this.internalServiceToken = internalServiceToken == null ? "" : internalServiceToken;
         this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newBuilder()
+        HttpClient.Builder builder = HttpClient.newBuilder()
                 .connectTimeout(CONNECT_TIMEOUT)
                 .version(HttpClient.Version.HTTP_1_1)
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build();
+                .followRedirects(HttpClient.Redirect.NORMAL);
+        SSLContext sslContext = MlTlsContextFactory.build(trustStorePath, trustStorePassword);
+        if (sslContext != null) {
+            builder.sslContext(sslContext);
+            log.info("MlModelClient: SSL context configured from trust store {} "
+                    + "(mTLS for backend↔ML traffic)", trustStorePath);
+        } else {
+            log.info("MlModelClient: no custom trust store — falling back to JVM default");
+        }
+        this.httpClient = builder.build();
+        if (this.internalServiceToken.isEmpty()) {
+            log.warn("ml.service.token is not configured; outbound calls to ML container will NOT include x-internal-token header. "
+                    + "Set INTERNAL_SERVICE_TOKEN env var to enable service-to-service auth.");
+        } else {
+            log.info("MlModelClient: x-internal-token header will be attached to outgoing requests (length={})",
+                    this.internalServiceToken.length());
+        }
+    }
+
+    /**
+     * Convenience constructor used by unit tests that do not exercise TLS.
+     * Falls back to the JVM default trust store (no PKCS#12 configured).
+     */
+    public MlModelClient(String mlServiceUrl, String internalServiceToken, ObjectMapper objectMapper) {
+        this(mlServiceUrl, internalServiceToken, "", "", objectMapper);
+    }
+
+    /**
+     * Apply the internal service auth header to an outgoing request builder
+     * when a token is configured. No-op when the token is empty (dev mode).
+     */
+    private HttpRequest.Builder applyAuthHeader(HttpRequest.Builder builder) {
+        if (!internalServiceToken.isEmpty()) {
+            builder.header("x-internal-token", internalServiceToken);
+        }
+        return builder;
     }
 
     @Override
@@ -75,10 +121,10 @@ public class MlModelClient implements ModelInferencePort {
             String jsonBody = objectMapper.writeValueAsString(payload);
             log.debug("Sending ML predict request to {}: {}", url, jsonBody);
 
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest request = applyAuthHeader(HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .timeout(READ_TIMEOUT)
-                    .header("Content-Type", "application/json")
+                    .header("Content-Type", "application/json"))
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
@@ -119,9 +165,9 @@ public class MlModelClient implements ModelInferencePort {
 
         String url = mlServiceUrl + "/model-info";
         try {
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest request = applyAuthHeader(HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .timeout(READ_TIMEOUT)
+                    .timeout(READ_TIMEOUT))
                     .GET()
                     .build();
 

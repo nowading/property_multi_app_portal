@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from app.adapters.web import close_adapters, init_adapters, register_error_handlers
+from app.adapters.web.internal_auth import InternalAuthMiddleware
 from app.adapters.web.middleware import TraceIdMiddleware
 from app.adapters.web.routers import (
     health_router,
@@ -36,6 +37,15 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Initialise adapter singletons on startup, release on shutdown."""
     init_adapters()
+    if settings.internal_service_token:
+        logger.info(
+            "internal_service_token_configured=true (inbound and outbound auth active)"
+        )
+    else:
+        logger.warning(
+            "internal_service_token_configured=false — INBOUND AUTH DISABLED. "
+            "Set INTERNAL_SERVICE_TOKEN in production."
+        )
     logger.info(
         "estimator_api_startup",
         extra={"host": settings.estimator_api_host, "port": settings.estimator_api_port},
@@ -68,6 +78,7 @@ def create_app() -> FastAPI:
 
     # Register middleware (order matters: trace_id first so logs have context)
     app.add_middleware(TraceIdMiddleware, service_name="estimator-api")
+    app.add_middleware(InternalAuthMiddleware)
 
     # Mount routers
     app.include_router(health_router)

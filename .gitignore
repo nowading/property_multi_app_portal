@@ -69,6 +69,13 @@ replay_pid*
 # ---------- Docker ----------
 *.pid
 
+# ---------- Security: TLS certs and keys (Phase C) ----------
+certs/
+*.pem
+*.key
+*.crt
+*.p12
+
 # ---------- Misc ----------
 .cache/
 tmp/

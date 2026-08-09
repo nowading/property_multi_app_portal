@@ -25,7 +25,9 @@ class MlModelClientTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
-        client = new MlModelClient("http://localhost:19999", objectMapper);
+        // Token is empty in the basic tests — they only verify error behavior when the ML
+        // service is unavailable, so outbound auth headers are irrelevant.
+        client = new MlModelClient("http://localhost:19999", "", objectMapper);
     }
 
     @Test

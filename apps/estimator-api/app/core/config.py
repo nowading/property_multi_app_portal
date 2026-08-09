@@ -18,6 +18,18 @@ class Settings(BaseSettings):
     # ML container connection
     ml_service_url: str = "http://localhost:8000"
 
+    # Phase C: Path to the PEM-encoded CA bundle used to verify the ML
+    # container's TLS certificate. Defaults to the location used in
+    # production docker-compose (read-only mount of ./certs/ca.crt).
+    # Set to "" to disable verification (NOT recommended — only useful for
+    # local unit tests where a self-signed dev cert is acceptable).
+    ml_ca_bundle_path: str = "/app/certs/ca.crt"
+
+    # Service-to-service auth: shared secret presented as `x-internal-token`
+    # on both inbound (from web) and outbound (to ML container) requests.
+    # Empty string disables the check (dev mode — logs a warning at startup).
+    internal_service_token: str = ""
+
     # Server bind
     estimator_api_host: str = "0.0.0.0"
     estimator_api_port: int = 8001

@@ -35,6 +35,17 @@ portal:
 ml:
   service:
     url: http://localhost:8000
+    token: test-internal-token-for-unit-tests
+    # Phase C: tests use plain HTTP mocks, so leave trust store empty.
+    # The factory falls back to the JVM default trust store when the path
+    # is blank — and no real TLS handshake ever happens (mocks stub the
+    # socket layer).
+    trust-store-path:
+    trust-store-password:
+
+internal:
+  service:
+    token: test-internal-token-for-unit-tests
 
 management:
   endpoints:

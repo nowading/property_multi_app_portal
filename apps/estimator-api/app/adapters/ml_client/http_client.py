@@ -13,6 +13,7 @@ Failure mapping:
 from __future__ import annotations
 
 import logging
+import ssl
 from datetime import datetime, timezone
 from typing import Any
 
@@ -51,12 +52,32 @@ class HttpxModelInference(ModelInferencePort, HealthPort):
         *,
         connect_timeout: float = 2.0,
         read_timeout: float = 5.0,
+        internal_service_token: str | None = None,
+        verify: str | ssl.SSLContext | bool = True,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._connect_timeout = connect_timeout
         self._read_timeout = read_timeout
         self._owns_client = client is None
+        default_headers: dict[str, str] | None = (
+            {"x-internal-token": internal_service_token}
+            if internal_service_token
+            else None
+        )
+        # Phase C: ``verify`` accepts an SSLContext, a path to a PEM CA
+        # bundle (e.g. ``/app/certs/ca.crt``), or a boolean. We resolve
+        # the string-path case into an SSLContext up front so httpx
+        # doesn't emit a deprecation warning for ``verify=<str>``.
+        resolved_verify: ssl.SSLContext | bool = True
+        if isinstance(verify, str):
+            ctx = ssl.create_default_context(cafile=verify)
+            resolved_verify = ctx
+        elif isinstance(verify, ssl.SSLContext):
+            resolved_verify = verify
+        else:
+            resolved_verify = bool(verify)
+        self._verify = resolved_verify
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(
                 connect=connect_timeout,
@@ -65,6 +86,8 @@ class HttpxModelInference(ModelInferencePort, HealthPort):
                 pool=1.0,
             ),
             base_url=self._base_url,
+            headers=default_headers,
+            verify=resolved_verify,
         )
 
     async def aclose(self) -> None:

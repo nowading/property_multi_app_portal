@@ -37,3 +37,15 @@ portal:
       connection-timeout: 15000
       idle-timeout: 300000
       max-lifetime: 1200000
+
+ml:
+  service:
+    url: http://localhost:8000
+    token: test-internal-token-for-unit-tests
+    # Phase C: tests skip TLS verification by leaving the trust store empty.
+    trust-store-path:
+    trust-store-password:
+
+internal:
+  service:
+    token: test-internal-token-for-unit-tests

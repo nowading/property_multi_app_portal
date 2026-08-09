@@ -63,6 +63,16 @@ spring:
 ml:
   service:
     url: ${ML_SERVICE_URL:http://ml-container:8000}
+    token: ${INTERNAL_SERVICE_TOKEN:}
+    # Phase C: trust store for self-signed ML cert (compose mounts ./certs/ca.p12 here).
+    # The trust store is generated with NoEncryption so the password is empty.
+    trust-store-path: ${ML_TRUST_STORE_PATH:/app/certs/ca.p12}
+    trust-store-password: ${ML_TRUST_STORE_PASSWORD:}
+
+# Internal service-to-service authentication token (dev defaults to empty)
+internal:
+  service:
+    token: ${INTERNAL_SERVICE_TOKEN:}
 
 # Actuator — more verbose in dev
 management:

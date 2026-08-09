@@ -67,6 +67,19 @@ portal:
 ml:
   service:
     url: ${ML_SERVICE_URL:http://localhost:8000}
+    token: ${INTERNAL_SERVICE_TOKEN:}
+    # Phase C: PKCS#12 trust store containing the project-local CA cert.
+    # When set, the HTTP client trusts the ML container's self-signed cert.
+    # Defaults to the production mount path; empty in dev / unit tests.
+    trust-store-path: ${ML_TRUST_STORE_PATH:}
+    trust-store-password: ${ML_TRUST_STORE_PASSWORD:}
+
+# Internal service-to-service authentication token
+# When empty, the InboundAuthFilter logs a warning and allows all requests (dev mode).
+# When set, every non-health request must present the matching x-internal-token header.
+internal:
+  service:
+    token: ${INTERNAL_SERVICE_TOKEN:}
 
 # Actuator Configuration
 management:

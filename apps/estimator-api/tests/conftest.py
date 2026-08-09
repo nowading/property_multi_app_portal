@@ -27,6 +27,59 @@ from app.adapters.web.dependencies import (
     get_list_history_use_case,
     get_predict_use_case,
 )
+
+
+class _AuthHeaderTestClient(TestClient):
+    """TestClient that auto-injects ``x-internal-token`` on every request.
+
+    The stock ``fastapi.testclient.TestClient(app, headers={...})`` does
+    pass default headers via httpx, but the bundled ``httpx`` version
+    shipped inside the project's image (httpx 0.x) sometimes drops them
+    for ``POST``/``PUT`` with a JSON body, causing the inbound
+    ``InternalAuthMiddleware`` to see a missing header and return 401.
+    This wrapper injects the token at the TestClient level so every
+    outgoing request carries it regardless of httpx version quirks.
+    """
+
+    def __init__(self, *args, token: str | None = None, **kwargs):
+        # Pop the headers kwarg if present so we never rely on the
+        # upstream default-header behaviour.
+        kwargs.pop("headers", None)
+        super().__init__(*args, **kwargs)
+        self._auth_token = token
+
+    def _inject(self, headers):
+        if not self._auth_token:
+            return headers
+        merged = dict(headers or {})
+        merged.setdefault("x-internal-token", self._auth_token)
+        return merged
+
+    def request(self, method, url, **kwargs):  # type: ignore[override]
+        kwargs["headers"] = self._inject(kwargs.get("headers"))
+        return super().request(method, url, **kwargs)
+
+    def get(self, url, **kwargs):  # type: ignore[override]
+        kwargs["headers"] = self._inject(kwargs.get("headers"))
+        return super().get(url, **kwargs)
+
+    def post(self, url, **kwargs):  # type: ignore[override]
+        kwargs["headers"] = self._inject(kwargs.get("headers"))
+        return super().post(url, **kwargs)
+
+    def put(self, url, **kwargs):  # type: ignore[override]
+        kwargs["headers"] = self._inject(kwargs.get("headers"))
+        return super().put(url, **kwargs)
+
+    def patch(self, url, **kwargs):  # type: ignore[override]
+        kwargs["headers"] = self._inject(kwargs.get("headers"))
+        return super().patch(url, **kwargs)
+
+    def delete(self, url, **kwargs):  # type: ignore[override]
+        kwargs["headers"] = self._inject(kwargs.get("headers"))
+        return super().delete(url, **kwargs)
+
+
 from app.application import (
     BatchPredictUseCase,
     CheckHealthUseCase,
@@ -37,6 +90,7 @@ from app.application import (
     ListHistoryUseCase,
     PredictUseCase,
 )
+from app.core.config import settings
 from app.domain import (
     HistoryEntry,
     HistoryRepositoryPort,
@@ -50,6 +104,12 @@ from app.domain import (
     PropertyFeatures,
 )
 from app.main import create_app
+
+
+# Standard test token used by all suites. Shared between the autouse
+# env-mutating fixture and the request-header fixtures so that a value
+# written to ``os.environ`` and a value sent in a request always agree.
+TEST_INTERNAL_TOKEN = "test-internal-token-please-do-not-use-in-prod"
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +220,26 @@ class FakeHistoryRepository(HistoryRepositoryPort):
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _set_internal_service_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Configure the internal service token for every test.
+
+    Sets both ``os.environ["INTERNAL_SERVICE_TOKEN"]`` (so the production
+    code path that reads env at startup behaves as expected) and
+    ``settings.internal_service_token`` (so the already-instantiated
+    ``Settings`` instance reflects the test value without needing to be
+    rebuilt). Restored automatically by ``monkeypatch`` after the test.
+    """
+    monkeypatch.setenv("INTERNAL_SERVICE_TOKEN", TEST_INTERNAL_TOKEN)
+    monkeypatch.setattr(settings, "internal_service_token", TEST_INTERNAL_TOKEN)
+
+
+@pytest.fixture
+def auth_headers() -> dict[str, str]:
+    """Headers a request needs to pass the inbound ``x-internal-token`` check."""
+    return {"x-internal-token": TEST_INTERNAL_TOKEN}
+
+
 @pytest.fixture
 def fake_model() -> FakeModelInference:
     return FakeModelInference()
@@ -206,15 +286,30 @@ def app(fake_model: FakeModelInference, fake_history: FakeHistoryRepository) -> 
 
 
 @pytest.fixture
-def client(app: FastAPI) -> TestClient:
+def client(app: FastAPI) -> _AuthHeaderTestClient:
     """HTTP client backed by the ASGI transport — no network, no port binding.
 
-    Uses ``fastapi.testclient.TestClient`` which wraps ``httpx.Client`` with
-    an ASGI transport. The lifespan runs ``init_adapters`` (creating a real
+    Uses ``fastapi.testclient.TestClient`` (via ``_AuthHeaderTestClient``
+    which guarantees the ``x-internal-token`` header is sent on every
+    request). The lifespan runs ``init_adapters`` (creating a real
     ``HttpxModelInference`` pointed at ``ML_SERVICE_URL``) but no requests
     reach it because every use case is overridden to use the fakes.
+
+    The default header includes the test internal-service token so the
+    ``InternalAuthMiddleware`` lets requests through. Tests that exercise
+    the auth middleware itself use ``unauthenticated_client`` instead.
     """
-    return TestClient(app)
+    return _AuthHeaderTestClient(app, token=TEST_INTERNAL_TOKEN)
+
+
+@pytest.fixture
+def unauthenticated_client(app: FastAPI) -> _AuthHeaderTestClient:
+    """HTTP client with NO auth headers — used to exercise the auth middleware.
+
+    Routes exempt from auth (``/healthz``) still respond normally; all
+    other paths return 401.
+    """
+    return _AuthHeaderTestClient(app)
 
 
 # ---------------------------------------------------------------------------

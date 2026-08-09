@@ -32,6 +32,19 @@ export const ANALYTICS_API_URL = resolveApiUrl(
   "http://localhost:8002"
 );
 
+/**
+ * Shared secret for service-to-service auth (Phase B).
+ *
+ * Server-side only — must NOT be exposed to the browser (no `NEXT_PUBLIC_`
+ * prefix). Read by server-side fetch helpers and attached to outbound
+ * requests as the `x-internal-token` header so backends' inbound auth
+ * middleware accepts the request. Trimmed to defend against accidental
+ * whitespace from `.env` files; defaults to empty string when unset.
+ */
+export const INTERNAL_SERVICE_TOKEN = (
+  process.env.INTERNAL_SERVICE_TOKEN ?? ""
+).trim();
+
 export const ANALYTICS_API_PATHS = {
   STATS: "/api/stats",
   DATASET: "/api/dataset",
